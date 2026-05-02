@@ -23,6 +23,11 @@ _PRESETS = os.environ.get("PII_GUARD_PRESETS", "dpdp").split(",")
 _ENABLED = os.environ.get("PII_GUARD_ENABLED", "1") not in ("0", "false", "no")
 
 
+def _debug(msg: str) -> None:
+    with open("/tmp/pii_guard_debug.log", "a") as f:
+        f.write(msg + "\n")
+
+
 def _extract_content(tool_result) -> str | None:
     """Handle both string and {content: str} forms of tool_result."""
     if isinstance(tool_result, str):
@@ -40,18 +45,19 @@ def _extract_content(tool_result) -> str | None:
 
 
 def _set_content(data: dict, new_content: str) -> None:
-    tr = data["tool_result"]
+    tr = data["tool_response"]
     if isinstance(tr, str):
-        data["tool_result"] = new_content
+        data["tool_response"] = new_content
     elif isinstance(tr, dict):
         if isinstance(tr.get("content"), list):
-            data["tool_result"]["content"] = [{"type": "text", "text": new_content}]
+            data["tool_response"]["content"] = [{"type": "text", "text": new_content}]
         else:
-            data["tool_result"]["content"] = new_content
+            data["tool_response"]["content"] = new_content
 
 
 def main():
     raw = sys.stdin.read()
+    _debug(f"[pii-guard hook fired] len={len(raw)} enabled={_ENABLED}")
 
     if not _ENABLED:
         sys.stdout.write(raw)
@@ -59,11 +65,14 @@ def main():
 
     try:
         data = json.loads(raw)
-    except json.JSONDecodeError:
+        _debug(f"[pii-guard] keys={list(data.keys())} tool_result_type={type(data.get('tool_result')).__name__}")
+    except json.JSONDecodeError as e:
+        _debug(f"[pii-guard] JSON decode error: {e} raw[:200]={raw[:200]}")
         sys.stdout.write(raw)
         return
 
-    tool_output = _extract_content(data.get("tool_result"))
+    tool_output = _extract_content(data.get("tool_response"))
+    _debug(f"[pii-guard] extracted content len={len(tool_output) if tool_output else None}")
     if not tool_output:
         sys.stdout.write(json.dumps(data))
         return

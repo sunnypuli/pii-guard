@@ -36,14 +36,14 @@ def _extract_content(tool_result) -> str | None:
 
 
 def _set_content(data: dict, new_content: str) -> None:
-    tr = data["tool_result"]
+    tr = data["tool_response"]
     if isinstance(tr, str):
-        data["tool_result"] = new_content
+        data["tool_response"] = new_content
     elif isinstance(tr, dict):
         if isinstance(tr.get("content"), list):
-            data["tool_result"]["content"] = [{"type": "text", "text": new_content}]
+            data["tool_response"]["content"] = [{"type": "text", "text": new_content}]
         else:
-            data["tool_result"]["content"] = new_content
+            data["tool_response"]["content"] = new_content
 
 
 def main():
@@ -59,7 +59,7 @@ def main():
         sys.stdout.write(raw)
         return
 
-    tool_output = _extract_content(data.get("tool_result"))
+    tool_output = _extract_content(data.get("tool_response"))
     if not tool_output:
         sys.stdout.write(json.dumps(data))
         return
