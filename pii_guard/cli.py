@@ -255,6 +255,12 @@ def tokenize(
                 f"  pii-guard detokenize result.txt --session {sess.path}",
                 fg="bright_white",
             )
+            click.echo()
+            click.echo("To export a mapping CSV for Excel VLOOKUP:")
+            click.secho(
+                f"  pii-guard export-session {sess.path}",
+                fg="bright_white",
+            )
 
 
 # ── detokenize ────────────────────────────────────────────────────────────────
@@ -287,6 +293,63 @@ def detokenize(file: str, session: str, output: str | None, quiet: bool):
                 text.count(tok) for tok in sess.tokens
             )
             click.secho(f"✓ Replaced {replaced} token(s). Output: {out_path}", fg="green")
+
+
+# ── export-session ───────────────────────────────────────────────────────────
+
+@cli.command("export-session")
+@click.argument("session", metavar="SESSION")
+@click.option(
+    "--output", "-o",
+    default=None,
+    help="Output CSV path. Default: <session-name>.mapping.csv",
+)
+@click.option(
+    "--filter-type", "-t",
+    default=None,
+    help="Only export a specific PII type, e.g. EMAIL or AADHAAR.",
+)
+def export_session(session: str, output: str | None, filter_type: str | None):
+    """Export a session key as a CSV mapping file for use in Excel / VLOOKUP.
+
+    \b
+    Output format:
+      token,pii_type,original_value
+      [EMAIL_1],EMAIL,john@acme.com
+      [AADHAAR_1],AADHAAR,2345 6789 0123
+
+    Use VLOOKUP on the token column to restore values in any spreadsheet.
+    """
+    import csv as _csv
+
+    sess = Session.load(session)
+    tokens = sess.tokens  # {token: original_value}
+
+    if not tokens:
+        click.secho("Session has no tokens.", fg="yellow")
+        return
+
+    # Derive pii_type from token name e.g. [EMAIL_1] → EMAIL
+    rows = []
+    for token, value in sorted(tokens.items()):
+        pii_type = token.strip("[]").rsplit("_", 1)[0]
+        if filter_type and pii_type.upper() != filter_type.upper():
+            continue
+        rows.append({"token": token, "pii_type": pii_type, "original_value": value})
+
+    if not rows:
+        click.secho(f"No tokens found for type '{filter_type}'.", fg="yellow")
+        return
+
+    out_path = output or str(Path(session).with_suffix(".mapping.csv"))
+    with open(out_path, "w", newline="", encoding="utf-8") as f:
+        writer = _csv.DictWriter(f, fieldnames=["token", "pii_type", "original_value"])
+        writer.writeheader()
+        writer.writerows(rows)
+
+    click.secho(f"✓ {len(rows)} token(s) exported to {out_path}", fg="green")
+    click.echo()
+    click.echo("In Excel: VLOOKUP(A2, mapping.csv!A:C, 3, FALSE)")
 
 
 # ── config ────────────────────────────────────────────────────────────────────
