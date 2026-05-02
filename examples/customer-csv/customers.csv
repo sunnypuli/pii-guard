@@ -1,0 +1,6 @@
+customer_id,name,email,mobile,aadhaar,pan,plan,churned
+C001,Rajesh Kumar,rajesh.kumar@gmail.com,+91 9876543210,2345 6789 0123,ABCDE1234F,premium,no
+C002,Priya Sharma,priya.sharma@yahoo.com,9988776655,3456 7890 1234,FGHIJ5678K,basic,yes
+C003,Amit Patel,amit.p@hotmail.com,+919876543211,4567 8901 2345,LMNOP9012Q,premium,no
+C004,Sunita Rao,sunita.rao@corp.in,9123456789,5678 9012 3456,RSTUV3456W,enterprise,no
+C005,Vikram Singh,vikram.s@startup.io,+91-9000000001,6789 0123 4567,XYZAB7890C,basic,yes

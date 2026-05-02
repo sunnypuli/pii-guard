@@ -1,0 +1,41 @@
+# pii-guard configuration
+# Copy to ~/.pii-guard/config.yaml or your project root
+
+# ── Presets ───────────────────────────────────────────────────────────────────
+# Activate one or more presets. Available: dpdp, gdpr, hipaa, pci
+presets:
+  - dpdp
+
+# ── Custom patterns ───────────────────────────────────────────────────────────
+# Add your own PII types. Key = token prefix, value = regex pattern.
+custom_patterns:
+  # CUSTOMER_ID: 'CUST-\d{6}'
+  # INTERNAL_REF: 'INT-[A-Z]{3}-\d{4}'
+  # EMPLOYEE_ID: 'EMP\d{5}'
+
+# ── Scanner tuning ────────────────────────────────────────────────────────────
+scanner:
+  # Disable specific pattern types even if their preset is active.
+  # Useful for noisy patterns like BANK_ACCOUNT_IN in structured data.
+  disabled_types:
+    - BANK_ACCOUNT_IN   # too many false positives on plain numbers
+    - PINCODE_IN        # too many false positives in addresses
+
+  # Whether to include base patterns (EMAIL, IP, JWT, URL_WITH_CREDS, API_KEY)
+  include_base: true
+
+# ── Session ───────────────────────────────────────────────────────────────────
+session:
+  # Where to store session key files
+  directory: ~/.pii-guard/sessions
+
+  # Auto-save session after tokenize (recommended: true)
+  auto_save: true
+
+# ── Hooks (Claude Code) ───────────────────────────────────────────────────────
+hooks:
+  # Maximum characters of bash output to scan (larger = slower)
+  max_bash_chars: 200000
+
+  # Set to false to disable hooks without removing them
+  enabled: true

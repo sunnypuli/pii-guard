@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Tests / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# pii-guard session files — contain sensitive mappings, never commit
+~/.pii-guard/sessions/
+
+# Generated safe files
+*.safe.*
+*.detokenized.*
+
+# Distribution
+*.whl
+*.tar.gz
+MANIFEST
