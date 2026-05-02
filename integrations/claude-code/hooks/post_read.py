@@ -28,15 +28,21 @@ def _debug(msg: str) -> None:
         f.write(msg + "\n")
 
 
-def _extract_content(tool_result) -> str | None:
-    """Handle both string and {content: str} forms of tool_result."""
-    if isinstance(tool_result, str):
-        return tool_result
-    if isinstance(tool_result, dict):
-        c = tool_result.get("content")
+def _extract_content(tool_response) -> str | None:
+    """Extract file content from Claude Code's tool_response payload."""
+    if isinstance(tool_response, str):
+        return tool_response
+    if isinstance(tool_response, dict):
+        # Claude Code Read format: {"type":"text","file":{"content":"...",...}}
+        file_block = tool_response.get("file")
+        if isinstance(file_block, dict):
+            c = file_block.get("content")
+            if isinstance(c, str):
+                return c
+        # Fallback: flat content key
+        c = tool_response.get("content")
         if isinstance(c, str):
             return c
-        # content can also be a list of content blocks
         if isinstance(c, list):
             return "\n".join(
                 block.get("text", "") for block in c if isinstance(block, dict)
@@ -49,7 +55,10 @@ def _set_content(data: dict, new_content: str) -> None:
     if isinstance(tr, str):
         data["tool_response"] = new_content
     elif isinstance(tr, dict):
-        if isinstance(tr.get("content"), list):
+        file_block = tr.get("file")
+        if isinstance(file_block, dict):
+            data["tool_response"]["file"]["content"] = new_content
+        elif isinstance(tr.get("content"), list):
             data["tool_response"]["content"] = [{"type": "text", "text": new_content}]
         else:
             data["tool_response"]["content"] = new_content
@@ -71,7 +80,9 @@ def main():
         sys.stdout.write(raw)
         return
 
-    tool_output = _extract_content(data.get("tool_response"))
+    tr = data.get("tool_response")
+    _debug(f"[pii-guard] tool_response={json.dumps(tr)[:500] if tr is not None else 'MISSING'}")
+    tool_output = _extract_content(tr)
     _debug(f"[pii-guard] extracted content len={len(tool_output) if tool_output else None}")
     if not tool_output:
         sys.stdout.write(json.dumps(data))
