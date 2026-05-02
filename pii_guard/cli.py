@@ -11,11 +11,13 @@ Commands:
 from __future__ import annotations
 
 import importlib.resources
+import re
 import shutil
 import sys
 from pathlib import Path
 
 import click
+import yaml
 
 from pii_guard.presets import AVAILABLE_PRESETS, load_presets
 from pii_guard.scanner.engine import Scanner
@@ -24,15 +26,61 @@ from pii_guard.tokenizer.engine import detokenize as _detokenize
 from pii_guard.tokenizer.engine import tokenize as _tokenize
 from pii_guard.tokenizer.session import Session
 
+_CONFIG_PATH = Path.home() / ".pii-guard" / "config.yaml"
+
+
+# ── Config loading ────────────────────────────────────────────────────────────
+
+def _load_config() -> dict:
+    """Load ~/.pii-guard/config.yaml if it exists, silently skip if not."""
+    if not _CONFIG_PATH.exists():
+        return {}
+    try:
+        return yaml.safe_load(_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def _custom_patterns_from_config() -> dict[str, str]:
+    """Return custom_patterns dict from config file."""
+    return _load_config().get("custom_patterns") or {}
+
+
+def _parse_inline_patterns(pattern_args: tuple[str, ...]) -> dict[str, str]:
+    """Parse --pattern KEY:REGEX flags into a dict."""
+    result: dict[str, str] = {}
+    for arg in pattern_args:
+        if ":" not in arg:
+            raise click.UsageError(
+                f"--pattern must be KEY:REGEX (e.g. --pattern CUSTOMER_ID:CUST-\\d{{6}}), got: {arg!r}"
+            )
+        key, _, regex = arg.partition(":")
+        key = key.strip().upper()
+        try:
+            re.compile(regex)
+        except re.error as e:
+            raise click.UsageError(f"Invalid regex for {key!r}: {e}")
+        result[key] = regex
+    return result
+
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
-def _build_scanner(presets: tuple[str, ...], no_base: bool) -> Scanner:
+def _build_scanner(
+    presets: tuple[str, ...],
+    no_base: bool,
+    extra_patterns: tuple[str, ...] = (),
+) -> Scanner:
     patterns: dict[str, str] = {}
     if not no_base:
         patterns.update(BASE_PATTERNS)
     if presets:
         patterns.update(load_presets(list(presets)))
+    # Config file custom patterns (lower priority than CLI flags)
+    patterns.update(_custom_patterns_from_config())
+    # Inline --pattern flags (highest priority, can override config)
+    if extra_patterns:
+        patterns.update(_parse_inline_patterns(extra_patterns))
     if not patterns:
         raise click.UsageError("No patterns loaded. Specify at least one preset or remove --no-base.")
     return Scanner(patterns)
@@ -73,12 +121,21 @@ def cli():
 )
 @click.option("--no-base", is_flag=True, help="Exclude base patterns (email, IP, JWT…)")
 @click.option("--show-values", is_flag=True, help="Print the actual matched values")
-def scan(file: str, preset: tuple, no_base: bool, show_values: bool):
+@click.option(
+    "--pattern", "-P",
+    multiple=True,
+    metavar="KEY:REGEX",
+    help="Add a custom pattern inline, e.g. -P CUSTOMER_ID:CUST-\\d{6}. Repeatable.",
+)
+def scan(file: str, preset: tuple, no_base: bool, show_values: bool, pattern: tuple):
     """Scan FILE (or stdin) for PII and report findings.
 
     Exits with code 1 if PII is found, 0 if clean.
+
+    Custom patterns can be added inline (-P KEY:REGEX) or persistently via
+    ~/.pii-guard/config.yaml under the custom_patterns key.
     """
-    scanner = _build_scanner(preset, no_base)
+    scanner = _build_scanner(preset, no_base, pattern)
     text = _read_input(file)
     matches = scanner.scan(text)
 
@@ -131,6 +188,12 @@ def scan(file: str, preset: tuple, no_base: bool, show_values: bool):
     help="Session key file. Default: ~/.pii-guard/sessions/pii-guard-<timestamp>.json",
 )
 @click.option("--quiet", "-q", is_flag=True, help="Suppress summary output")
+@click.option(
+    "--pattern", "-P",
+    multiple=True,
+    metavar="KEY:REGEX",
+    help="Add a custom pattern inline, e.g. -P EMPLOYEE_ID:EMP\\d{5}. Repeatable.",
+)
 def tokenize(
     file: str,
     preset: tuple,
@@ -138,13 +201,17 @@ def tokenize(
     output: str | None,
     session: str | None,
     quiet: bool,
+    pattern: tuple,
 ):
     """Tokenize PII in FILE (or stdin). Writes safe output + session key.
 
     The session key file maps tokens back to original values.
     It never leaves your machine.
+
+    Custom patterns can be added inline (-P KEY:REGEX) or persistently via
+    ~/.pii-guard/config.yaml under the custom_patterns key.
     """
-    scanner = _build_scanner(preset, no_base)
+    scanner = _build_scanner(preset, no_base, pattern)
     text = _read_input(file)
 
     sess = Session.load(session) if session else Session.new()

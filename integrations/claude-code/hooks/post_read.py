@@ -96,9 +96,19 @@ def main():
         from pii_guard.tokenizer.session import Session
 
         patterns = {**BASE_PATTERNS, **load_presets(_PRESETS)}
+        # Load custom patterns from ~/.pii-guard/config.yaml if present
+        try:
+            import yaml
+            cfg_path = Path.home() / ".pii-guard" / "config.yaml"
+            if cfg_path.exists():
+                cfg = yaml.safe_load(cfg_path.read_text()) or {}
+                patterns.update(cfg.get("custom_patterns") or {})
+        except Exception:
+            pass
         scanner = Scanner(patterns)
 
         if not scanner.has_pii(tool_output):
+            _debug(f"[pii-guard] no PII found, passing through")
             sys.stdout.write(json.dumps(data))
             return
 
@@ -113,6 +123,7 @@ def main():
 
         tokenized, matches = tokenize(tool_output, scanner, session)
         session.save()
+        _debug(f"[pii-guard] TOKENIZED {len(matches)} matches: {[m.pii_type for m in matches[:5]]}")
 
         notice = (
             f"[pii-guard] {len(matches)} PII instance(s) tokenised "

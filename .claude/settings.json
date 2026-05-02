@@ -1,0 +1,26 @@
+{
+  "_comment": "Drop this into your project's .claude/settings.json (or merge with existing hooks).",
+  "_comment2": "Set PII_GUARD_PRESETS=dpdp,pci in your shell to activate multiple presets.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.pii-guard/hooks/post_read.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.pii-guard/hooks/post_bash.py"
+          }
+        ]
+      }
+    ]
+  }
+}

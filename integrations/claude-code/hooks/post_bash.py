@@ -74,6 +74,14 @@ def main():
         from pii_guard.tokenizer.session import Session
 
         patterns = {**BASE_PATTERNS, **load_presets(_PRESETS)}
+        try:
+            import yaml
+            cfg_path = Path.home() / ".pii-guard" / "config.yaml"
+            if cfg_path.exists():
+                cfg = yaml.safe_load(cfg_path.read_text()) or {}
+                patterns.update(cfg.get("custom_patterns") or {})
+        except Exception:
+            pass
         scanner = Scanner(patterns)
 
         if not scanner.has_pii(scan_target):
