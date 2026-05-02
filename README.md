@@ -105,18 +105,42 @@ Session key stays in `~/.pii-guard/sessions/`. Never sent anywhere.
 
 ## Custom patterns
 
-Add your own PII types in `~/.pii-guard/config.yaml`:
+### Persistent — `~/.pii-guard/config.yaml`
+
+Patterns here are loaded automatically by every CLI command and the Claude Code hooks:
 
 ```yaml
 custom_patterns:
   CUSTOMER_ID: 'CUST-\d{6}'
   EMPLOYEE_ID: 'EMP\d{5}'
+  INTERNAL_REF: 'INT-[A-Z]{3}-\d{4}'
 ```
 
-Or pass them inline:
+Create the file if it doesn't exist — copy the example as a starting point:
 
 ```bash
-pii-guard scan file.csv --show-values  # with whatever is in config.yaml
+mkdir -p ~/.pii-guard
+cp config/pii-guard.example.yaml ~/.pii-guard/config.yaml
+```
+
+### Inline — `--pattern` / `-P` flag
+
+For one-off patterns without touching the config file:
+
+```bash
+# Scan with a custom pattern
+pii-guard scan file.csv -P "CUSTOMER_ID:CUST-\d{6}" --show-values
+
+# Tokenize with multiple custom patterns
+pii-guard tokenize file.csv -P "CUSTOMER_ID:CUST-\d{6}" -P "EMPLOYEE_ID:EMP\d{5}"
+```
+
+The token name is the key you provide — `CUST-123456` becomes `[CUSTOMER_ID_1]`, fully reversible like any built-in type.
+
+You can combine presets and custom patterns freely:
+
+```bash
+pii-guard tokenize data.csv -p dpdp -p pci -P "ACCOUNT_REF:ACC-\d{8}"
 ```
 
 See `config/pii-guard.example.yaml` for the full config reference.
