@@ -336,6 +336,7 @@ Session key stays in `~/.pii-guard/sessions/`. Never sent anywhere.
 ## Limitations
 
 - **Regex-based detection** — structured formats (Aadhaar, PAN, IBAN, SSN) have near-zero false negatives. Free-form PII (names, addresses in prose) is not detected; combine with a dedicated NER model if needed.
+- **DOCX formatting in PII-containing paragraphs** — when a PII value spans multiple runs in a Word document (e.g., bold text adjacent to the value), the paragraph is collapsed to a single run after tokenization. Paragraphs with no PII are untouched.
 - **Same-session tokens only** — tokens from one session cannot be detokenized with a different session key. Keep the session file for as long as you need to reverse.
 - **Streaming responses** — the proxy detokenizes SSE streams line-by-line. A token that spans two SSE chunks will not be restored; rare but possible with large token strings.
 - **Proxy is localhost-only** — binds to `127.0.0.1`. Not designed to be network-exposed. Treat the session key file as a secret.
