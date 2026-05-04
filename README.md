@@ -48,7 +48,8 @@ All three modes use the same tokenization engine and session format. `john@acme.
 ## Install
 
 ```bash
-pip install pii-guard
+pip install pii-guard            # core (plain text, CSV)
+pip install 'pii-guard[rich]'    # + PDF, Word (.docx), Excel (.xlsx)
 ```
 
 ---
@@ -67,6 +68,40 @@ pii-guard tokenize customers.csv -p dpdp
 # Analyse customers.safe.csv with whatever AI tool you use
 # Then restore real values
 pii-guard detokenize result.txt --session ~/.pii-guard/sessions/pii-guard-<timestamp>.json
+```
+
+### Supported file formats
+
+| Format | Scan | Tokenize | Notes |
+|--------|------|----------|-------|
+| Plain text, CSV, JSON | ✓ | ✓ | Core, no extra deps |
+| PDF (`.pdf`) | ✓ | ✓ | Output as `.safe.txt`; requires `pii-guard[rich]` |
+| Word (`.docx`) | ✓ | ✓ | Format preserved, paragraphs and tables tokenized in-place; requires `pii-guard[rich]` |
+| Excel (`.xlsx`) | ✓ | ✓ | Format preserved, all string cells tokenized in-place; requires `pii-guard[rich]` |
+
+```bash
+pip install 'pii-guard[rich]'                 # install format support
+pii-guard scan report.docx -p dpdp            # scan a Word doc
+pii-guard tokenize customer_data.xlsx -p dpdp # tokenize an Excel sheet → customer_data.safe.xlsx
+pii-guard scan employees.pdf -p hipaa         # scan a PDF
+```
+
+### Session stats
+
+```bash
+pii-guard stats ~/.pii-guard/sessions/pii-guard-<timestamp>.json
+```
+
+```
+Session:  pii-guard-20240115-103000.json
+Total tokens: 12
+
+  Type                    Count
+  ---------------------- ------
+  EMAIL                       4
+  AADHAAR                     3
+  MOBILE_IN                   3
+  PAN                         2
 ```
 
 ### Export session as CSV (for Excel / VLOOKUP)
@@ -305,6 +340,52 @@ Session key stays in `~/.pii-guard/sessions/`. Never sent anywhere.
 - **Streaming responses** — the proxy detokenizes SSE streams line-by-line. A token that spans two SSE chunks will not be restored; rare but possible with large token strings.
 - **Proxy is localhost-only** — binds to `127.0.0.1`. Not designed to be network-exposed. Treat the session key file as a secret.
 - **No key management** — session files are plain JSON on disk. Encrypt or delete when no longer needed.
+
+---
+
+## CI/CD integration
+
+### GitHub Actions
+
+Copy `integrations/github-actions/pii-scan.yml` into `.github/workflows/` to fail PRs that introduce raw PII in CSV, JSON, TXT, or log files:
+
+```bash
+cp integrations/github-actions/pii-scan.yml .github/workflows/pii-scan.yml
+```
+
+### pre-commit hook
+
+Add to your `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/sunnypuli/pii-guard
+    rev: main
+    hooks:
+      - id: pii-guard-scan
+        args: [--preset, dpdp]
+```
+
+Then install hooks with `pre-commit install`. Commits that include files with detectable PII will be blocked.
+
+### Audit log
+
+Every `scan` and `tokenize` run appends a line to `~/.pii-guard/audit.log`:
+
+```
+2024-01-15T10:30:00  tokenize     customers.csv                   total=12  AADHAAR:3 EMAIL:4 PAN:2
+```
+
+---
+
+## Docker (proxy)
+
+```bash
+docker build -t pii-guard .
+docker run -p 8111:8111 pii-guard --preset dpdp,pci
+```
+
+Then set `ANTHROPIC_BASE_URL=http://localhost:8111` or `OPENAI_BASE_URL=http://localhost:8111/openai/v1`.
 
 ---
 

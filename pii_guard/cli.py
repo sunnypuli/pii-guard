@@ -2,18 +2,23 @@
 pii-guard CLI
 
 Commands:
-  scan        Detect PII and report what was found (read-only)
-  tokenize    Replace PII with consistent tokens, write session key
-  detokenize  Reverse tokenize using a session key file
-  config      Manage configuration
+  scan            Detect PII and report what was found (read-only)
+  tokenize        Replace PII with consistent tokens, write session key
+  detokenize      Reverse tokenize using a session key file
+  stats           Show token counts from a session key file
+  export-session  Export session as CSV for Excel / VLOOKUP
+  proxy           Start local PII-filtering API proxy
+  install-hooks   Install Claude Code PostToolUse hooks
+  config          Manage configuration
 """
 
 from __future__ import annotations
 
-import importlib.resources
+import json
 import re
 import shutil
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -26,13 +31,13 @@ from pii_guard.tokenizer.engine import detokenize as _detokenize
 from pii_guard.tokenizer.engine import tokenize as _tokenize
 from pii_guard.tokenizer.session import Session
 
-_CONFIG_PATH = Path.home() / ".pii-guard" / "config.yaml"
+_CONFIG_PATH   = Path.home() / ".pii-guard" / "config.yaml"
+_AUDIT_LOG     = Path.home() / ".pii-guard" / "audit.log"
 
 
 # ── Config loading ────────────────────────────────────────────────────────────
 
 def _load_config() -> dict:
-    """Load ~/.pii-guard/config.yaml if it exists, silently skip if not."""
     if not _CONFIG_PATH.exists():
         return {}
     try:
@@ -42,12 +47,10 @@ def _load_config() -> dict:
 
 
 def _custom_patterns_from_config() -> dict[str, str]:
-    """Return custom_patterns dict from config file."""
     return _load_config().get("custom_patterns") or {}
 
 
 def _parse_inline_patterns(pattern_args: tuple[str, ...]) -> dict[str, str]:
-    """Parse --pattern KEY:REGEX flags into a dict."""
     result: dict[str, str] = {}
     for arg in pattern_args:
         if ":" not in arg:
@@ -76,9 +79,7 @@ def _build_scanner(
         patterns.update(BASE_PATTERNS)
     if presets:
         patterns.update(load_presets(list(presets)))
-    # Config file custom patterns (lower priority than CLI flags)
     patterns.update(_custom_patterns_from_config())
-    # Inline --pattern flags (highest priority, can override config)
     if extra_patterns:
         patterns.update(_parse_inline_patterns(extra_patterns))
     if not patterns:
@@ -89,12 +90,56 @@ def _build_scanner(
 def _read_input(file: str) -> str:
     if file == "-":
         return sys.stdin.read()
-    return Path(file).read_text(encoding="utf-8", errors="replace")
+    path = Path(file)
+    from pii_guard.formats import is_rich_format, read_text
+    if is_rich_format(path):
+        try:
+            return read_text(path)
+        except ImportError as e:
+            raise click.ClickException(str(e))
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def _default_output_path(input_path: str, suffix: str = ".safe") -> str:
     p = Path(input_path)
+    if p.suffix.lower() == ".pdf":
+        return str(p.with_stem(p.stem + suffix).with_suffix(".txt"))
     return str(p.with_stem(p.stem + suffix))
+
+
+def _write_tokenized_output(
+    file: str,
+    output: str,
+    tokenized_text: str,
+    sess: Session,
+) -> None:
+    """Write tokenized output, preserving format for DOCX/XLSX."""
+    from pii_guard.formats import is_rich_format, write_tokenized
+
+    path = Path(file)
+    out_path = Path(output)
+
+    if is_rich_format(path) and path.suffix.lower() != ".pdf":
+        original_to_token = {v: k for k, v in sess.tokens.items()}
+        try:
+            write_tokenized(path, out_path, original_to_token)
+        except ImportError as e:
+            raise click.ClickException(str(e))
+    else:
+        out_path.write_text(tokenized_text, encoding="utf-8")
+
+
+def _append_audit(action: str, file: str, count: int, by_type: dict[str, int]) -> None:
+    """Append one line to the audit log."""
+    try:
+        _AUDIT_LOG.parent.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().isoformat(timespec="seconds")
+        parts = [f"{k}:{v}" for k, v in sorted(by_type.items())]
+        line = f"{ts}  {action:<12} {Path(file).name:<40} total={count}  {' '.join(parts)}\n"
+        with _AUDIT_LOG.open("a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception:
+        pass
 
 
 # ── CLI group ─────────────────────────────────────────────────────────────────
@@ -130,10 +175,8 @@ def cli():
 def scan(file: str, preset: tuple, no_base: bool, show_values: bool, pattern: tuple):
     """Scan FILE (or stdin) for PII and report findings.
 
+    Supports plain text, CSV, PDF, DOCX, and XLSX files.
     Exits with code 1 if PII is found, 0 if clean.
-
-    Custom patterns can be added inline (-P KEY:REGEX) or persistently via
-    ~/.pii-guard/config.yaml under the custom_patterns key.
     """
     scanner = _build_scanner(preset, no_base, pattern)
     text = _read_input(file)
@@ -143,7 +186,6 @@ def scan(file: str, preset: tuple, no_base: bool, show_values: bool, pattern: tu
         click.secho("✓ No PII detected.", fg="green")
         sys.exit(0)
 
-    # Group by type
     by_type: dict[str, list] = {}
     for m in matches:
         by_type.setdefault(m.pii_type, []).append(m)
@@ -155,13 +197,14 @@ def scan(file: str, preset: tuple, no_base: bool, show_values: bool, pattern: tu
         count = len(type_matches)
         click.secho(f"  {pii_type:<20} {count:>4} instance(s)", fg="yellow")
         if show_values:
-            for m in type_matches[:5]:           # cap at 5 to avoid flooding output
+            for m in type_matches[:5]:
                 click.echo(f"    line {_line_num(text, m.start):>4}: {m.value!r}")
             if count > 5:
                 click.echo(f"    … and {count - 5} more")
 
     click.echo()
     click.echo("Run `pii-guard tokenize` to replace with tokens before analysis.")
+    _append_audit("scan", file, len(matches), {t: len(ms) for t, ms in by_type.items()})
     sys.exit(1)
 
 
@@ -192,7 +235,7 @@ def scan(file: str, preset: tuple, no_base: bool, show_values: bool, pattern: tu
     "--pattern", "-P",
     multiple=True,
     metavar="KEY:REGEX",
-    help="Add a custom pattern inline, e.g. -P EMPLOYEE_ID:EMP\\d{5}. Repeatable.",
+    help="Add a custom pattern inline. Repeatable.",
 )
 def tokenize(
     file: str,
@@ -205,11 +248,9 @@ def tokenize(
 ):
     """Tokenize PII in FILE (or stdin). Writes safe output + session key.
 
-    The session key file maps tokens back to original values.
-    It never leaves your machine.
-
-    Custom patterns can be added inline (-P KEY:REGEX) or persistently via
-    ~/.pii-guard/config.yaml under the custom_patterns key.
+    Supports plain text, CSV, PDF, DOCX, and XLSX.
+    DOCX and XLSX files are tokenized in-place, preserving formatting.
+    PDF files are written as tokenized plain text.
     """
     scanner = _build_scanner(preset, no_base, pattern)
     text = _read_input(file)
@@ -222,21 +263,19 @@ def tokenize(
             click.secho("✓ No PII detected — file is already clean.", fg="green")
         if output and output != "-":
             Path(output).write_text(tokenized, encoding="utf-8")
-        else:
+        elif file == "-" or output == "-":
             click.echo(tokenized, nl=False)
         return
 
     sess.save()
 
-    # Write tokenized output
     if file == "-" or output == "-":
         click.echo(tokenized, nl=False)
     else:
         out_path = output or _default_output_path(file)
-        Path(out_path).write_text(tokenized, encoding="utf-8")
+        _write_tokenized_output(file, out_path, tokenized, sess)
 
     if not quiet:
-        # Summary
         by_type: dict[str, int] = {}
         for m in matches:
             by_type[m.pii_type] = by_type.get(m.pii_type, 0) + 1
@@ -261,6 +300,8 @@ def tokenize(
                 f"  pii-guard export-session {sess.path}",
                 fg="bright_white",
             )
+
+    _append_audit("tokenize", file if file != "-" else "stdin", len(matches), by_type if not quiet else {})
 
 
 # ── detokenize ────────────────────────────────────────────────────────────────
@@ -289,10 +330,39 @@ def detokenize(file: str, session: str, output: str | None, quiet: bool):
         out_path = output or _default_output_path(file, suffix=".detokenized")
         Path(out_path).write_text(result, encoding="utf-8")
         if not quiet:
-            replaced = sum(
-                text.count(tok) for tok in sess.tokens
-            )
+            replaced = sum(text.count(tok) for tok in sess.tokens)
             click.secho(f"✓ Replaced {replaced} token(s). Output: {out_path}", fg="green")
+
+
+# ── stats ─────────────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.argument("session", metavar="SESSION")
+def stats(session: str):
+    """Show token counts from a session key file.
+
+    \b
+    Example:
+      pii-guard stats ~/.pii-guard/sessions/pii-guard-20240115-103000.json
+    """
+    sess = Session.load(session)
+    tokens = sess.tokens
+
+    if not tokens:
+        click.secho("Session is empty — no tokens recorded.", fg="yellow")
+        return
+
+    by_type = sess.summary_by_type()
+    total = sum(by_type.values())
+
+    click.echo()
+    click.secho(f"Session:  {Path(session).name}", bold=True)
+    click.secho(f"Total tokens: {total}\n", fg="cyan")
+    click.echo(f"  {'Type':<22} {'Count':>6}")
+    click.echo(f"  {'-'*22} {'------':>6}")
+    for pii_type, count in sorted(by_type.items(), key=lambda x: -x[1]):
+        click.echo(f"  {pii_type:<22} {count:>6}")
+    click.echo()
 
 
 # ── export-session ───────────────────────────────────────────────────────────
@@ -317,19 +387,16 @@ def export_session(session: str, output: str | None, filter_type: str | None):
       token,pii_type,original_value
       [EMAIL_1],EMAIL,john@acme.com
       [AADHAAR_1],AADHAAR,2345 6789 0123
-
-    Use VLOOKUP on the token column to restore values in any spreadsheet.
     """
     import csv as _csv
 
     sess = Session.load(session)
-    tokens = sess.tokens  # {token: original_value}
+    tokens = sess.tokens
 
     if not tokens:
         click.secho("Session has no tokens.", fg="yellow")
         return
 
-    # Derive pii_type from token name e.g. [EMAIL_1] → EMAIL
     rows = []
     for token, value in sorted(tokens.items()):
         pii_type = token.strip("[]").rsplit("_", 1)[0]
@@ -381,7 +448,6 @@ def show_patterns(preset: str):
         patterns = load_presets([preset])
     except ValueError as e:
         raise click.ClickException(str(e))
-
     click.echo(f"\nPatterns in preset '{preset}':\n")
     for pii_type, pattern in sorted(patterns.items()):
         click.echo(f"  {pii_type}")
@@ -412,21 +478,24 @@ def proxy(port: int, preset: tuple, pattern: tuple, session: str | None, no_base
     """Start a local PII-filtering proxy for the Claude / OpenAI API.
 
     \b
-    Your app talks to http://localhost:PORT instead of api.anthropic.com.
-    pii-guard tokenizes PII in every prompt before it goes upstream and
-    detokenizes the response before it reaches your app.
+    Works with Cursor, Aider, Codex CLI, Continue.dev, LangChain, and any
+    OpenAI-compatible or Anthropic-compatible SDK.
 
     \b
     Quickstart:
       pii-guard proxy --port 8111 --preset dpdp
 
     \b
-    Then configure your SDK:
-      export ANTHROPIC_BASE_URL=http://localhost:8111        # Anthropic
-      export OPENAI_BASE_URL=http://localhost:8111/openai/v1 # OpenAI-compat
+    Configure your SDK:
+      export ANTHROPIC_BASE_URL=http://localhost:8111
+      export OPENAI_BASE_URL=http://localhost:8111/openai/v1
 
     \b
-    Restore real values from a session:
+    Docker:
+      docker run -p 8111:8111 pii-guard proxy --preset dpdp
+
+    \b
+    Restore real values:
       pii-guard export-session ~/.pii-guard/sessions/<id>.json
     """
     try:
@@ -438,17 +507,7 @@ def proxy(port: int, preset: tuple, pattern: tuple, session: str | None, no_base
 
     from pii_guard.proxy.server import ProxyServer
 
-    patterns: dict[str, str] = {}
-    if not no_base:
-        from pii_guard.scanner.patterns import BASE_PATTERNS
-        patterns.update(BASE_PATTERNS)
-    if preset:
-        patterns.update(load_presets(list(preset)))
-    if pattern:
-        patterns.update(_parse_inline_patterns(pattern))
-
     session_path = Path(session) if session else None
-
     ProxyServer(
         port=port,
         presets=list(preset),
@@ -476,9 +535,10 @@ def install_hooks(project: str, global_only: bool):
       ~/.pii-guard/hooks/post_bash.py    — intercepts Bash tool output
       <project>/.claude/settings.json   — wires hooks into Claude Code
 
-    Then copy integrations/CLAUDE.md into your project to add the behavioral layer.
+    \b
+    For Cursor, Aider, and other tools use the proxy instead:
+      pii-guard proxy --port 8111 --preset dpdp
     """
-    # Locate the integrations directory bundled with the package
     try:
         pkg_root = Path(__file__).parent.parent
         hooks_src = pkg_root / "integrations" / "claude-code" / "hooks"
@@ -488,11 +548,10 @@ def install_hooks(project: str, global_only: bool):
     except (FileNotFoundError, Exception):
         raise click.ClickException(
             "Could not find bundled hook files. "
-            "Try cloning the repo and running from there: "
-            "https://github.com/your-org/pii-guard"
+            "Clone the repo and run from there: "
+            "https://github.com/sunnypuli/pii-guard"
         )
 
-    # Install hooks to ~/.pii-guard/hooks/
     hook_dest = Path.home() / ".pii-guard" / "hooks"
     hook_dest.mkdir(parents=True, exist_ok=True)
 
@@ -509,17 +568,13 @@ def install_hooks(project: str, global_only: bool):
         _print_next_steps()
         return
 
-    # Install settings.json into project .claude/
     project_path = Path(project).resolve()
     claude_dir = project_path / ".claude"
     settings_dst = claude_dir / "settings.json"
 
     if settings_dst.exists():
-        # Merge hooks block into existing settings.json
-        import json as _json
-        existing = _json.loads(settings_dst.read_text(encoding="utf-8"))
-        new_hooks = _json.loads(settings_src.read_text(encoding="utf-8"))
-
+        existing = json.loads(settings_dst.read_text(encoding="utf-8"))
+        new_hooks = json.loads(settings_src.read_text(encoding="utf-8"))
         existing_hooks = existing.setdefault("hooks", {})
         for event, matchers in new_hooks.get("hooks", {}).items():
             existing_hooks.setdefault(event, [])
@@ -527,9 +582,8 @@ def install_hooks(project: str, global_only: bool):
             for matcher_block in matchers:
                 if matcher_block.get("matcher") not in existing_matchers:
                     existing_hooks[event].append(matcher_block)
-
         settings_dst.write_text(
-            _json.dumps(existing, indent=2, ensure_ascii=False),
+            json.dumps(existing, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
         click.secho(f"  ✓ Merged into existing {settings_dst}", fg="green")

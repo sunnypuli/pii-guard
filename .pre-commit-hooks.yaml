@@ -1,0 +1,11 @@
+- id: pii-guard-scan
+  name: pii-guard PII scan
+  description: >
+    Scan staged files for PII before committing.
+    Fails if any PII is detected. Use pii-guard tokenize to sanitize first.
+  language: python
+  entry: pii-guard scan
+  args: [--preset, dpdp]
+  types: [text]
+  pass_filenames: true
+  stages: [pre-commit]
