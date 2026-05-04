@@ -38,9 +38,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/pii-guard/pii-guard"
-Repository = "https://github.com/pii-guard/pii-guard"
-Issues = "https://github.com/pii-guard/pii-guard/issues"
+Homepage = "https://github.com/sunnypuli/pii-guard"
+Repository = "https://github.com/sunnypuli/pii-guard"
+Issues = "https://github.com/sunnypuli/pii-guard/issues"
 
 [project.scripts]
 pii-guard = "pii_guard.cli:cli"
