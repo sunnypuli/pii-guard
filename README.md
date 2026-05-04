@@ -2,7 +2,7 @@
 
 **Local PII firewall for AI coding tools. Tokenize before it leaves your machine.**
 
-When you ask any AI tool — Claude Code, Cursor, Aider, Codex, Continue.dev — to analyse data, raw PII travels to their servers. pii-guard intercepts it first: replaces real values with consistent tokens (`[AADHAAR_1]`, `[EMAIL_2]`), lets the AI work on the safe version, and reverses it when you're done. The mapping key never leaves your machine.
+When you ask any AI tool — Claude Code, Cursor, Aider, Codex, Continue.dev — to analyse data, raw PII travels to their servers. piiwall intercepts it first: replaces real values with consistent tokens (`[AADHAAR_1]`, `[EMAIL_2]`), lets the AI work on the safe version, and reverses it when you're done. The mapping key never leaves your machine.
 
 ---
 
@@ -17,7 +17,7 @@ When you ask any AI tool — Claude Code, Cursor, Aider, Codex, Continue.dev —
 | **Continue.dev** | Set `apiBase` in `~/.continue/config.json` |
 | **Any OpenAI-SDK app** | Set `OPENAI_BASE_URL` — no code changes |
 | **Any Anthropic-SDK app** | Set `ANTHROPIC_BASE_URL` — no code changes |
-| **Any tool, any LLM** | Manually: `pii-guard tokenize file.csv` before sharing |
+| **Any tool, any LLM** | Manually: `piiwall tokenize file.csv` before sharing |
 
 Integration guides: [`integrations/`](integrations/)
 
@@ -28,14 +28,14 @@ Integration guides: [`integrations/`](integrations/)
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Mode 1 · CLI  (any tool, manual)                                   │
-│  pii-guard tokenize file.csv → safe file → AI analyses → detokenize │
+│  piiwall tokenize file.csv → safe file → AI analyses → detokenize │
 ├─────────────────────────────────────────────────────────────────────┤
 │  Mode 2 · Claude Code hooks  (automatic, zero-touch)                │
-│  pii-guard install-hooks → hooks fire on every Read + Bash output   │
+│  piiwall install-hooks → hooks fire on every Read + Bash output   │
 │  Claude never sees raw PII in the session                           │
 ├─────────────────────────────────────────────────────────────────────┤
 │  Mode 3 · API proxy  (any OpenAI/Anthropic-compatible tool)         │
-│  pii-guard proxy → sits between your tool and the upstream API      │
+│  piiwall proxy → sits between your tool and the upstream API      │
 │  One env var. Zero code changes. Works with Cursor, Aider, Codex,  │
 │  Continue.dev, LangChain, and any SDK that respects base URL vars.  │
 └─────────────────────────────────────────────────────────────────────┘
@@ -60,14 +60,14 @@ Works with any AI tool. Tokenize a file first, share the safe version, detokeniz
 
 ```bash
 # Scan — see what PII exists (exits 1 if found)
-pii-guard scan customers.csv --show-values
+piiwall scan customers.csv --show-values
 
 # Tokenize — create customers.safe.csv with tokens
-pii-guard tokenize customers.csv -p dpdp
+piiwall tokenize customers.csv -p dpdp
 
 # Analyse customers.safe.csv with whatever AI tool you use
 # Then restore real values
-pii-guard detokenize result.txt --session ~/.pii-guard/sessions/pii-guard-<timestamp>.json
+piiwall detokenize result.txt --session ~/.piiwall/sessions/piiwall-<timestamp>.json
 ```
 
 ### Supported file formats
@@ -75,25 +75,25 @@ pii-guard detokenize result.txt --session ~/.pii-guard/sessions/pii-guard-<times
 | Format | Scan | Tokenize | Notes |
 |--------|------|----------|-------|
 | Plain text, CSV, JSON | ✓ | ✓ | Core, no extra deps |
-| PDF (`.pdf`) | ✓ | ✓ | Output as `.safe.txt`; requires `pii-guard[rich]` |
-| Word (`.docx`) | ✓ | ✓ | Format preserved, paragraphs and tables tokenized in-place; requires `pii-guard[rich]` |
-| Excel (`.xlsx`) | ✓ | ✓ | Format preserved, all string cells tokenized in-place; requires `pii-guard[rich]` |
+| PDF (`.pdf`) | ✓ | ✓ | Output as `.safe.txt`; requires `piiwall[rich]` |
+| Word (`.docx`) | ✓ | ✓ | Format preserved, paragraphs and tables tokenized in-place; requires `piiwall[rich]` |
+| Excel (`.xlsx`) | ✓ | ✓ | Format preserved, all string cells tokenized in-place; requires `piiwall[rich]` |
 
 ```bash
 pip install 'piiwall[rich]'                 # install format support
-pii-guard scan report.docx -p dpdp            # scan a Word doc
-pii-guard tokenize customer_data.xlsx -p dpdp # tokenize an Excel sheet → customer_data.safe.xlsx
-pii-guard scan employees.pdf -p hipaa         # scan a PDF
+piiwall scan report.docx -p dpdp            # scan a Word doc
+piiwall tokenize customer_data.xlsx -p dpdp # tokenize an Excel sheet → customer_data.safe.xlsx
+piiwall scan employees.pdf -p hipaa         # scan a PDF
 ```
 
 ### Session stats
 
 ```bash
-pii-guard stats ~/.pii-guard/sessions/pii-guard-<timestamp>.json
+piiwall stats ~/.piiwall/sessions/piiwall-<timestamp>.json
 ```
 
 ```
-Session:  pii-guard-20240115-103000.json
+Session:  piiwall-20240115-103000.json
 Total tokens: 12
 
   Type                    Count
@@ -107,10 +107,10 @@ Total tokens: 12
 ### Export session as CSV (for Excel / VLOOKUP)
 
 ```bash
-pii-guard export-session ~/.pii-guard/sessions/pii-guard-<timestamp>.json
+piiwall export-session ~/.piiwall/sessions/piiwall-<timestamp>.json
 ```
 
-Output (`pii-guard-<timestamp>_mapping.csv`):
+Output (`piiwall-<timestamp>_mapping.csv`):
 
 ```
 token,pii_type,original_value
@@ -130,8 +130,8 @@ token,pii_type,original_value
 | `pci`  | 💳 Visa, Mastercard, Amex, Discover, Rupay, CVV, card expiry |
 
 ```bash
-pii-guard tokenize file.csv -p dpdp -p pci   # combine presets
-pii-guard config show-patterns dpdp           # inspect patterns in a preset
+piiwall tokenize file.csv -p dpdp -p pci   # combine presets
+piiwall config show-patterns dpdp           # inspect patterns in a preset
 ```
 
 ---
@@ -142,7 +142,7 @@ One command installs hooks that fire on every file Claude reads and every bash c
 
 ```bash
 pip install piiwall
-pii-guard install-hooks --global
+piiwall install-hooks --global
 ```
 
 This writes two PostToolUse hooks into `~/.claude/settings.json`. Claude never sees raw PII in any session.
@@ -162,7 +162,7 @@ post_read.py intercepts the tool response
         ↓
 Scans for PII → finds 20 instances
         ↓
-Replaces with tokens, saves session key → ~/.pii-guard/sessions/claude-<session-id>.json
+Replaces with tokens, saves session key → ~/.piiwall/sessions/claude-<session-id>.json
         ↓
 Claude sees [EMAIL_1], [AADHAAR_1] — never the real values
 ```
@@ -172,9 +172,9 @@ All Read and Bash calls in one Claude Code session share one session file. One d
 ### Restore after Claude session
 
 ```bash
-pii-guard detokenize result.txt --session ~/.pii-guard/sessions/claude-<session-id>.json
+piiwall detokenize result.txt --session ~/.piiwall/sessions/claude-<session-id>.json
 # or export as CSV
-pii-guard export-session ~/.pii-guard/sessions/claude-<session-id>.json
+piiwall export-session ~/.piiwall/sessions/claude-<session-id>.json
 ```
 
 ### Control via environment variables
@@ -192,7 +192,7 @@ export PII_GUARD_MAX_CHARS=200000   # cap bash output scan size (default: 200000
 The proxy sits between your tool and the upstream API. It tokenizes every outgoing prompt and detokenizes every response. Your tool and your code are unchanged.
 
 ```bash
-pii-guard proxy --port 8111 --preset dpdp
+piiwall proxy --port 8111 --preset dpdp
 ```
 
 ### Set the base URL in your tool
@@ -209,7 +209,7 @@ Your existing code works unchanged:
 
 ```python
 import anthropic
-client = anthropic.Anthropic()   # routes through pii-guard automatically
+client = anthropic.Anthropic()   # routes through piiwall automatically
 
 response = client.messages.create(
     model="claude-sonnet-4-6",
@@ -224,7 +224,7 @@ response = client.messages.create(
 ```
 Your tool sends prompt with real PII
         ↓
-pii-guard proxy on localhost:8111
+piiwall proxy on localhost:8111
         ↓
 Tokenizes PII → [EMAIL_1], [AADHAAR_1], [PAN_1]
         ↓
@@ -242,18 +242,18 @@ Anthropic and OpenAI never see the real data.
 ### Proxy options
 
 ```bash
-pii-guard proxy --port 8111                        # default port
-pii-guard proxy --preset dpdp,pci                  # multiple presets
-pii-guard proxy --pattern "CUST_ID:CUST-\d{6}"    # custom pattern
-pii-guard proxy --session session.json             # resume existing session
-pii-guard proxy --quiet                            # suppress per-request logs
+piiwall proxy --port 8111                        # default port
+piiwall proxy --preset dpdp,pci                  # multiple presets
+piiwall proxy --pattern "CUST_ID:CUST-\d{6}"    # custom pattern
+piiwall proxy --session session.json             # resume existing session
+piiwall proxy --quiet                            # suppress per-request logs
 ```
 
 ### Restore after proxy session
 
 ```bash
-pii-guard export-session ~/.pii-guard/sessions/<session-id>.json
-pii-guard detokenize output.txt --session ~/.pii-guard/sessions/<session-id>.json
+piiwall export-session ~/.piiwall/sessions/<session-id>.json
+piiwall detokenize output.txt --session ~/.piiwall/sessions/<session-id>.json
 ```
 
 ### Per-tool guides
@@ -268,7 +268,7 @@ pii-guard detokenize output.txt --session ~/.pii-guard/sessions/<session-id>.jso
 
 ## Custom patterns
 
-### Persistent — `~/.pii-guard/config.yaml`
+### Persistent — `~/.piiwall/config.yaml`
 
 Loaded automatically by the CLI, hooks, and proxy:
 
@@ -280,16 +280,16 @@ custom_patterns:
 ```
 
 ```bash
-mkdir -p ~/.pii-guard
-cp config/pii-guard.example.yaml ~/.pii-guard/config.yaml
+mkdir -p ~/.piiwall
+cp config/piiwall.example.yaml ~/.piiwall/config.yaml
 ```
 
 ### Inline — `--pattern` / `-P` flag
 
 ```bash
-pii-guard scan file.csv -P "CUSTOMER_ID:CUST-\d{6}" --show-values
-pii-guard tokenize file.csv -P "CUSTOMER_ID:CUST-\d{6}" -P "EMPLOYEE_ID:EMP\d{5}"
-pii-guard tokenize data.csv -p dpdp -p pci -P "ACCOUNT_REF:ACC-\d{8}"
+piiwall scan file.csv -P "CUSTOMER_ID:CUST-\d{6}" --show-values
+piiwall tokenize file.csv -P "CUSTOMER_ID:CUST-\d{6}" -P "EMPLOYEE_ID:EMP\d{5}"
+piiwall tokenize data.csv -p dpdp -p pci -P "ACCOUNT_REF:ACC-\d{8}"
 ```
 
 `CUST-123456` becomes `[CUSTOMER_ID_1]`, fully reversible.
@@ -329,7 +329,7 @@ john@acme.com   →  [EMAIL_1]     ← same input, same token
 2345 6789 0123  →  [AADHAAR_1]
 ```
 
-Session key stays in `~/.pii-guard/sessions/`. Never sent anywhere.
+Session key stays in `~/.piiwall/sessions/`. Never sent anywhere.
 
 ---
 
@@ -360,10 +360,10 @@ Add to your `.pre-commit-config.yaml`:
 
 ```yaml
 repos:
-  - repo: https://github.com/sunnypuli/pii-guard
+  - repo: https://github.com/sunnypuli/piiwall
     rev: main
     hooks:
-      - id: pii-guard-scan
+      - id: piiwall-scan
         args: [--preset, dpdp]
 ```
 
@@ -371,7 +371,7 @@ Then install hooks with `pre-commit install`. Commits that include files with de
 
 ### Audit log
 
-Every `scan` and `tokenize` run appends a line to `~/.pii-guard/audit.log`:
+Every `scan` and `tokenize` run appends a line to `~/.piiwall/audit.log`:
 
 ```
 2024-01-15T10:30:00  tokenize     customers.csv                   total=12  AADHAAR:3 EMAIL:4 PAN:2
@@ -382,8 +382,8 @@ Every `scan` and `tokenize` run appends a line to `~/.pii-guard/audit.log`:
 ## Docker (proxy)
 
 ```bash
-docker build -t pii-guard .
-docker run -p 8111:8111 pii-guard --preset dpdp,pci
+docker build -t piiwall .
+docker run -p 8111:8111 piiwall --preset dpdp,pci
 ```
 
 Then set `ANTHROPIC_BASE_URL=http://localhost:8111` or `OPENAI_BASE_URL=http://localhost:8111/openai/v1`.
@@ -399,8 +399,8 @@ Contributions welcome — especially:
 - IDE and tool integrations
 
 ```bash
-git clone https://github.com/sunnypuli/pii-guard
-cd pii-guard
+git clone https://github.com/sunnypuli/piiwall
+cd piiwall
 python -m venv venv && source venv/bin/activate
 pip install -e ".[dev]"
 pytest
