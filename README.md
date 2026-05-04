@@ -1,4 +1,4 @@
-# pii-guard
+# piiwall  *(pronounced: Pi-Wall)*
 
 **Local PII firewall for AI coding tools. Tokenize before it leaves your machine.**
 
