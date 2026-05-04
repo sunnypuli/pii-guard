@@ -388,6 +388,76 @@ def show_patterns(preset: str):
         click.echo(f"    {pattern}\n")
 
 
+# ── proxy ─────────────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.option("--port", "-p", default=8111, show_default=True, help="Local port to listen on.")
+@click.option(
+    "--preset", "-P",
+    multiple=True,
+    default=("dpdp",),
+    show_default=True,
+    help="Presets to activate.",
+)
+@click.option(
+    "--pattern",
+    multiple=True,
+    metavar="KEY:REGEX",
+    help="Extra inline pattern, e.g. --pattern CUSTOMER_ID:CUST-\\d{6}",
+)
+@click.option("--session", "-s", default=None, help="Resume an existing session key file.")
+@click.option("--no-base", is_flag=True, help="Exclude base patterns (email, IP, JWT…)")
+@click.option("--quiet", "-q", is_flag=True, help="Suppress per-request logs.")
+def proxy(port: int, preset: tuple, pattern: tuple, session: str | None, no_base: bool, quiet: bool):
+    """Start a local PII-filtering proxy for the Claude / OpenAI API.
+
+    \b
+    Your app talks to http://localhost:PORT instead of api.anthropic.com.
+    pii-guard tokenizes PII in every prompt before it goes upstream and
+    detokenizes the response before it reaches your app.
+
+    \b
+    Quickstart:
+      pii-guard proxy --port 8111 --preset dpdp
+
+    \b
+    Then configure your SDK:
+      export ANTHROPIC_BASE_URL=http://localhost:8111        # Anthropic
+      export OPENAI_BASE_URL=http://localhost:8111/openai/v1 # OpenAI-compat
+
+    \b
+    Restore real values from a session:
+      pii-guard export-session ~/.pii-guard/sessions/<id>.json
+    """
+    try:
+        import httpx  # noqa: F401
+    except ImportError:
+        raise click.ClickException(
+            "httpx is required for the proxy. Install it: pip install httpx"
+        )
+
+    from pii_guard.proxy.server import ProxyServer
+
+    patterns: dict[str, str] = {}
+    if not no_base:
+        from pii_guard.scanner.patterns import BASE_PATTERNS
+        patterns.update(BASE_PATTERNS)
+    if preset:
+        patterns.update(load_presets(list(preset)))
+    if pattern:
+        patterns.update(_parse_inline_patterns(pattern))
+
+    session_path = Path(session) if session else None
+
+    ProxyServer(
+        port=port,
+        presets=list(preset),
+        extra_patterns=_parse_inline_patterns(pattern) if pattern else None,
+        session_path=session_path,
+        verbose=not quiet,
+    ).start()
+
+
 # ── install-hooks ─────────────────────────────────────────────────────────────
 
 @cli.command("install-hooks")
