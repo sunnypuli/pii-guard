@@ -90,6 +90,81 @@ export PII_GUARD_ENABLED=0          # disable hooks without removing them
 export PII_GUARD_MAX_CHARS=200000   # cap bash output scan size (default: 200000)
 ```
 
+## API Proxy — control point for production apps
+
+If your application calls the Claude or OpenAI API directly, use the proxy to intercept every request before it hits the upstream server.
+
+```bash
+pii-guard proxy --port 8111 --preset dpdp
+```
+
+Then point your SDK at the proxy with a single env var — no code changes needed:
+
+```bash
+# Anthropic SDK
+export ANTHROPIC_BASE_URL=http://localhost:8111
+
+# OpenAI-compatible SDK (Codex, GPT, etc.)
+export OPENAI_BASE_URL=http://localhost:8111/openai/v1
+```
+
+Your existing code works unchanged:
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()  # routes through pii-guard automatically
+
+response = client.messages.create(
+    model="claude-sonnet-4-6",
+    messages=[{"role": "user", "content": "Analyse rajesh@gmail.com, Aadhaar 2345 6789 0123"}]
+)
+# Anthropic receives: "Analyse [EMAIL_1], Aadhaar [AADHAAR_1]"
+# Your app receives:  "Analyse rajesh@gmail.com, Aadhaar 2345 6789 0123"
+```
+
+### What the proxy does
+
+```
+Your app sends prompt with real PII
+        ↓
+pii-guard proxy intercepts on localhost:8111
+        ↓
+Tokenizes PII → [EMAIL_1], [AADHAAR_1], [PAN_1]
+        ↓
+Forwards tokenized prompt to api.anthropic.com
+        ↓
+Gets response containing tokens
+        ↓
+Detokenizes response → real values restored
+        ↓
+Your app receives response with real values
+```
+
+Anthropic never sees the real data. Your app never knows the difference.
+
+### Proxy options
+
+```bash
+pii-guard proxy --port 8111            # default port
+pii-guard proxy --preset dpdp,pci     # multiple presets
+pii-guard proxy --pattern "CUST_ID:CUST-\d{6}"  # custom pattern
+pii-guard proxy --session session.json # resume existing session
+pii-guard proxy --quiet               # suppress per-request logs
+```
+
+### Restore real values
+
+The proxy saves a session key for the lifetime of the proxy process:
+
+```bash
+# Export as CSV for Excel / VLOOKUP
+pii-guard export-session ~/.pii-guard/sessions/<session-id>.json
+
+# Or detokenize an output file
+pii-guard detokenize output.txt --session ~/.pii-guard/sessions/<session-id>.json
+```
+
 ## How tokenization works
 
 Same value → same token within a session. Different values → different tokens. Fully reversible.
