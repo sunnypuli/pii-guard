@@ -1,8 +1,25 @@
 # pii-guard
 
-**Local PII firewall for AI CLI tools. Tokenize before it leaves your machine.**
+**Local PII firewall for AI coding tools. Tokenize before it leaves your machine.**
 
-When you ask Claude Code or Codex to analyse data, raw PII — Aadhaar numbers, emails, PANs, phone numbers — travels to Anthropic/OpenAI servers. pii-guard intercepts it first, replaces real values with consistent tokens (`[AADHAAR_1]`, `[EMAIL_2]`), and lets the analysis run on the safe version. You keep the key file; you can reverse it any time.
+When you ask any AI tool — Claude Code, Cursor, Aider, Codex, Continue.dev — to analyse data, raw PII travels to their servers. pii-guard intercepts it first: replaces real values with consistent tokens (`[AADHAAR_1]`, `[EMAIL_2]`), lets the AI work on the safe version, and reverses it when you're done. The mapping key never leaves your machine.
+
+---
+
+## Works with every AI tool
+
+| Tool | How |
+|------|-----|
+| **Claude Code** | PostToolUse hooks — automatic, zero-touch per file read |
+| **Cursor** | Set `OPENAI_BASE_URL=http://localhost:8111/openai/v1` |
+| **Aider** | Set `OPENAI_API_BASE=http://localhost:8111/openai/v1` |
+| **OpenAI Codex CLI** | Set `OPENAI_BASE_URL=http://localhost:8111/openai/v1` |
+| **Continue.dev** | Set `apiBase` in `~/.continue/config.json` |
+| **Any OpenAI-SDK app** | Set `OPENAI_BASE_URL` — no code changes |
+| **Any Anthropic-SDK app** | Set `ANTHROPIC_BASE_URL` — no code changes |
+| **Any tool, any LLM** | Manually: `pii-guard tokenize file.csv` before sharing |
+
+Integration guides: [`integrations/`](integrations/)
 
 ---
 
@@ -10,23 +27,21 @@ When you ask Claude Code or Codex to analyse data, raw PII — Aadhaar numbers, 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Mode 1 · CLI (manual)                                              │
-│  You run: pii-guard tokenize file.csv                               │
-│  → safe file created → AI analyses safe file → you detokenize       │
+│  Mode 1 · CLI  (any tool, manual)                                   │
+│  pii-guard tokenize file.csv → safe file → AI analyses → detokenize │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Mode 2 · Claude Code hooks (automatic)                             │
-│  Claude reads a file → post_read.py intercepts the content          │
-│  → PII replaced with tokens before Claude ever sees it              │
-│  → same session key, one detokenize pass restores everything        │
+│  Mode 2 · Claude Code hooks  (automatic, zero-touch)                │
+│  pii-guard install-hooks → hooks fire on every Read + Bash output   │
+│  Claude never sees raw PII in the session                           │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Mode 3 · API proxy (production apps)                               │
-│  Your app → localhost:8111 → pii-guard tokenizes → api.anthropic.com│
-│  Response: detokenized before your app receives it                  │
-│  → drop-in: one env var, zero code changes                          │
+│  Mode 3 · API proxy  (any OpenAI/Anthropic-compatible tool)         │
+│  pii-guard proxy → sits between your tool and the upstream API      │
+│  One env var. Zero code changes. Works with Cursor, Aider, Codex,  │
+│  Continue.dev, LangChain, and any SDK that respects base URL vars.  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-All three modes use the same tokenization engine and session format. Tokens are consistent across modes within a session: `john@acme.com` is always `[EMAIL_1]`.
+All three modes use the same tokenization engine and session format. `john@acme.com` is always `[EMAIL_1]` within a session, regardless of which mode captured it.
 
 ---
 
@@ -38,27 +53,23 @@ pip install pii-guard
 
 ---
 
-## Mode 1 — CLI (manual workflow)
+## Mode 1 — CLI (tool-agnostic, manual)
 
-### Quickstart
+Works with any AI tool. Tokenize a file first, share the safe version, detokenize results when done.
 
 ```bash
-# Scan a file — see what PII exists (exits 1 if found)
+# Scan — see what PII exists (exits 1 if found)
 pii-guard scan customers.csv --show-values
 
-# Tokenize — replace PII with tokens, save a session key
+# Tokenize — create customers.safe.csv with tokens
 pii-guard tokenize customers.csv -p dpdp
 
-# customers.safe.csv now has [EMAIL_1], [AADHAAR_1] etc.
-# Analyse it safely with any AI tool.
-
-# Reverse when done
+# Analyse customers.safe.csv with whatever AI tool you use
+# Then restore real values
 pii-guard detokenize result.txt --session ~/.pii-guard/sessions/pii-guard-<timestamp>.json
 ```
 
 ### Export session as CSV (for Excel / VLOOKUP)
-
-After tokenizing, export the full mapping as a spreadsheet-friendly CSV:
 
 ```bash
 pii-guard export-session ~/.pii-guard/sessions/pii-guard-<timestamp>.json
@@ -74,8 +85,6 @@ token,pii_type,original_value
 [PAN_1],PAN,ABCDE1234F
 ```
 
-Use this for VLOOKUP-based re-identification in Excel or Google Sheets without running the CLI again.
-
 ### Presets
 
 | Preset | Covers |
@@ -85,32 +94,25 @@ Use this for VLOOKUP-based re-identification in Excel or Google Sheets without r
 | `hipaa`| 🇺🇸 SSN, NPI, DEA, MRN, health plan IDs, US phone, US dates |
 | `pci`  | 💳 Visa, Mastercard, Amex, Discover, Rupay, CVV, card expiry |
 
-Use multiple presets at once:
-
 ```bash
-pii-guard tokenize file.csv -p dpdp -p pci
-```
-
-Inspect what patterns a preset uses:
-
-```bash
-pii-guard config show-patterns dpdp
+pii-guard tokenize file.csv -p dpdp -p pci   # combine presets
+pii-guard config show-patterns dpdp           # inspect patterns in a preset
 ```
 
 ---
 
 ## Mode 2 — Claude Code hooks (automatic, zero-touch)
 
-One command sets everything up:
+One command installs hooks that fire on every file Claude reads and every bash command output:
 
 ```bash
 pip install pii-guard
 pii-guard install-hooks --global
 ```
 
-This installs two PostToolUse hooks into `~/.pii-guard/hooks/` and wires them into `~/.claude/settings.json`. Every file Claude reads and every bash command output is automatically scanned and tokenized before entering the model's context. No manual steps needed per project.
+This writes two PostToolUse hooks into `~/.claude/settings.json`. Claude never sees raw PII in any session.
 
-Add the behavioral layer (tells Claude to offer tokenization proactively):
+Add the behavioral layer (tells Claude to proactively offer tokenization):
 
 ```bash
 cp integrations/CLAUDE.md ~/.claude/CLAUDE.md
@@ -125,24 +127,18 @@ post_read.py intercepts the tool response
         ↓
 Scans for PII → finds 20 instances
         ↓
-Replaces with tokens, saves session key to ~/.pii-guard/sessions/claude-<session-id>.json
+Replaces with tokens, saves session key → ~/.pii-guard/sessions/claude-<session-id>.json
         ↓
 Claude sees [EMAIL_1], [AADHAAR_1] — never the real values
-        ↓
-pii-guard detokenize result.txt --session ~/.pii-guard/sessions/claude-<session-id>.json
 ```
 
-All tool calls within one Claude Code session share a single session file, so one detokenize pass restores everything.
+All Read and Bash calls in one Claude Code session share one session file. One detokenize pass restores everything.
 
-### Restore real values after Claude analysis
+### Restore after Claude session
 
 ```bash
 pii-guard detokenize result.txt --session ~/.pii-guard/sessions/claude-<session-id>.json
-```
-
-Or export the full mapping for the session:
-
-```bash
+# or export as CSV
 pii-guard export-session ~/.pii-guard/sessions/claude-<session-id>.json
 ```
 
@@ -156,21 +152,21 @@ export PII_GUARD_MAX_CHARS=200000   # cap bash output scan size (default: 200000
 
 ---
 
-## Mode 3 — API proxy (production apps)
+## Mode 3 — API proxy (Cursor, Aider, Codex, Continue.dev, any SDK)
 
-If your application calls the Claude or OpenAI API directly, use the proxy to intercept every request before it hits the upstream server.
+The proxy sits between your tool and the upstream API. It tokenizes every outgoing prompt and detokenizes every response. Your tool and your code are unchanged.
 
 ```bash
 pii-guard proxy --port 8111 --preset dpdp
 ```
 
-Then point your SDK at the proxy with a single env var — no code changes needed:
+### Set the base URL in your tool
 
 ```bash
-# Anthropic SDK
+# Anthropic SDK / Claude Code / any Anthropic-compatible tool
 export ANTHROPIC_BASE_URL=http://localhost:8111
 
-# OpenAI-compatible SDK (Codex, GPT, etc.)
+# OpenAI SDK / Cursor / Aider / Codex CLI / Continue.dev / LangChain
 export OPENAI_BASE_URL=http://localhost:8111/openai/v1
 ```
 
@@ -178,8 +174,7 @@ Your existing code works unchanged:
 
 ```python
 import anthropic
-
-client = anthropic.Anthropic()  # routes through pii-guard automatically
+client = anthropic.Anthropic()   # routes through pii-guard automatically
 
 response = client.messages.create(
     model="claude-sonnet-4-6",
@@ -192,44 +187,47 @@ response = client.messages.create(
 ### What the proxy does
 
 ```
-Your app sends prompt with real PII
+Your tool sends prompt with real PII
         ↓
-pii-guard proxy intercepts on localhost:8111
+pii-guard proxy on localhost:8111
         ↓
 Tokenizes PII → [EMAIL_1], [AADHAAR_1], [PAN_1]
         ↓
-Forwards tokenized prompt to api.anthropic.com
+Forwards to api.anthropic.com or api.openai.com
         ↓
-Gets response containing tokens
+Gets response with tokens
         ↓
-Detokenizes response → real values restored
+Detokenizes → real values restored
         ↓
-Your app receives response with real values
+Your tool receives response with real values
 ```
 
-Anthropic never sees the real data. Your app never knows the difference.
+Anthropic and OpenAI never see the real data.
 
 ### Proxy options
 
 ```bash
-pii-guard proxy --port 8111            # default port
-pii-guard proxy --preset dpdp,pci     # multiple presets
-pii-guard proxy --pattern "CUST_ID:CUST-\d{6}"  # custom pattern
-pii-guard proxy --session session.json # resume existing session
-pii-guard proxy --quiet               # suppress per-request logs
+pii-guard proxy --port 8111                        # default port
+pii-guard proxy --preset dpdp,pci                  # multiple presets
+pii-guard proxy --pattern "CUST_ID:CUST-\d{6}"    # custom pattern
+pii-guard proxy --session session.json             # resume existing session
+pii-guard proxy --quiet                            # suppress per-request logs
 ```
 
-### Restore real values from a proxy session
-
-The proxy saves a session key for the lifetime of the proxy process:
+### Restore after proxy session
 
 ```bash
-# Export as CSV for Excel / VLOOKUP
 pii-guard export-session ~/.pii-guard/sessions/<session-id>.json
-
-# Or detokenize an output file
 pii-guard detokenize output.txt --session ~/.pii-guard/sessions/<session-id>.json
 ```
+
+### Per-tool guides
+
+- [Cursor](integrations/cursor/README.md)
+- [Aider](integrations/aider/README.md)
+- [OpenAI Codex CLI](integrations/codex/README.md)
+- [Continue.dev](integrations/continue-dev/README.md)
+- [Claude Code hooks](integrations/claude-code/)
 
 ---
 
@@ -237,7 +235,7 @@ pii-guard detokenize output.txt --session ~/.pii-guard/sessions/<session-id>.jso
 
 ### Persistent — `~/.pii-guard/config.yaml`
 
-Patterns here are loaded automatically by every CLI command, the Claude Code hooks, and the proxy:
+Loaded automatically by the CLI, hooks, and proxy:
 
 ```yaml
 custom_patterns:
@@ -246,8 +244,6 @@ custom_patterns:
   INTERNAL_REF: 'INT-[A-Z]{3}-\d{4}'
 ```
 
-Create the file if it doesn't exist — copy the example as a starting point:
-
 ```bash
 mkdir -p ~/.pii-guard
 cp config/pii-guard.example.yaml ~/.pii-guard/config.yaml
@@ -255,25 +251,13 @@ cp config/pii-guard.example.yaml ~/.pii-guard/config.yaml
 
 ### Inline — `--pattern` / `-P` flag
 
-For one-off patterns without touching the config file:
-
 ```bash
-# Scan with a custom pattern
 pii-guard scan file.csv -P "CUSTOMER_ID:CUST-\d{6}" --show-values
-
-# Tokenize with multiple custom patterns
 pii-guard tokenize file.csv -P "CUSTOMER_ID:CUST-\d{6}" -P "EMPLOYEE_ID:EMP\d{5}"
-```
-
-The token name is the key you provide — `CUST-123456` becomes `[CUSTOMER_ID_1]`, fully reversible like any built-in type.
-
-You can combine presets and custom patterns freely:
-
-```bash
 pii-guard tokenize data.csv -p dpdp -p pci -P "ACCOUNT_REF:ACC-\d{8}"
 ```
 
-See `config/pii-guard.example.yaml` for the full config reference.
+`CUST-123456` becomes `[CUSTOMER_ID_1]`, fully reversible.
 
 ---
 
@@ -316,11 +300,11 @@ Session key stays in `~/.pii-guard/sessions/`. Never sent anywhere.
 
 ## Limitations
 
-- **Regex-based detection** — structured formats (Aadhaar, PAN, IBAN, SSN) have near-zero false negatives. Free-form PII (full names, addresses in prose) is not detected; combine with a dedicated NER model if you need it.
-- **Same-session tokens only** — tokens from one session cannot be detokenized with a different session key. Keep the session file for as long as you need to reverse the data.
-- **Streaming responses** — the proxy detokenizes SSE streams line-by-line. If a token spans two SSE chunks it will not be restored; this is rare but possible with very large token strings.
-- **Proxy is localhost-only** — `pii-guard proxy` binds to `127.0.0.1` by default. It is not designed to be exposed to a network; treat the session key file as a secret.
-- **No key management** — session files are plain JSON on disk. Encrypt or delete them when no longer needed.
+- **Regex-based detection** — structured formats (Aadhaar, PAN, IBAN, SSN) have near-zero false negatives. Free-form PII (names, addresses in prose) is not detected; combine with a dedicated NER model if needed.
+- **Same-session tokens only** — tokens from one session cannot be detokenized with a different session key. Keep the session file for as long as you need to reverse.
+- **Streaming responses** — the proxy detokenizes SSE streams line-by-line. A token that spans two SSE chunks will not be restored; rare but possible with large token strings.
+- **Proxy is localhost-only** — binds to `127.0.0.1`. Not designed to be network-exposed. Treat the session key file as a secret.
+- **No key management** — session files are plain JSON on disk. Encrypt or delete when no longer needed.
 
 ---
 
@@ -330,7 +314,7 @@ Contributions welcome — especially:
 
 - New preset patterns (country-specific IDs, sector-specific formats)
 - False positive reports with reproducible examples
-- IDE integrations beyond Claude Code
+- IDE and tool integrations
 
 ```bash
 git clone https://github.com/sunnypuli/pii-guard
@@ -340,7 +324,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Pattern PRs should include a test in `tests/test_presets.py` that covers at least one valid and one invalid example.
+Pattern PRs should include a test in `tests/test_presets.py` covering at least one valid and one invalid example.
 
 ---
 
