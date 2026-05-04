@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pii-guard"
+name = "piiwall"
 version = "0.1.0"
 description = "Local PII firewall for AI CLI tools. Tokenize before it leaves your machine."
 readme = "README.md"

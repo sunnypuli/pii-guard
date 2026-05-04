@@ -48,8 +48,8 @@ All three modes use the same tokenization engine and session format. `john@acme.
 ## Install
 
 ```bash
-pip install pii-guard            # core (plain text, CSV)
-pip install 'pii-guard[rich]'    # + PDF, Word (.docx), Excel (.xlsx)
+pip install piiwall            # core (plain text, CSV)
+pip install 'piiwall[rich]'    # + PDF, Word (.docx), Excel (.xlsx)
 ```
 
 ---
@@ -80,7 +80,7 @@ pii-guard detokenize result.txt --session ~/.pii-guard/sessions/pii-guard-<times
 | Excel (`.xlsx`) | ✓ | ✓ | Format preserved, all string cells tokenized in-place; requires `pii-guard[rich]` |
 
 ```bash
-pip install 'pii-guard[rich]'                 # install format support
+pip install 'piiwall[rich]'                 # install format support
 pii-guard scan report.docx -p dpdp            # scan a Word doc
 pii-guard tokenize customer_data.xlsx -p dpdp # tokenize an Excel sheet → customer_data.safe.xlsx
 pii-guard scan employees.pdf -p hipaa         # scan a PDF
@@ -141,7 +141,7 @@ pii-guard config show-patterns dpdp           # inspect patterns in a preset
 One command installs hooks that fire on every file Claude reads and every bash command output:
 
 ```bash
-pip install pii-guard
+pip install piiwall
 pii-guard install-hooks --global
 ```
 
