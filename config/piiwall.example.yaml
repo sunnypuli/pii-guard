@@ -1,5 +1,5 @@
-# pii-guard configuration
-# Copy to ~/.pii-guard/config.yaml or your project root
+# piiwall configuration
+# Copy to ~/.piiwall/config.yaml or your project root
 
 # ── Presets ───────────────────────────────────────────────────────────────────
 # Activate one or more presets. Available: dpdp, gdpr, hipaa, pci
@@ -27,7 +27,7 @@ scanner:
 # ── Session ───────────────────────────────────────────────────────────────────
 session:
   # Where to store session key files
-  directory: ~/.pii-guard/sessions
+  directory: ~/.piiwall/sessions
 
   # Auto-save session after tokenize (recommended: true)
   auto_save: true

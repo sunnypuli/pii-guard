@@ -26,7 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-_DEFAULT_SESSION_DIR = Path.home() / ".pii-guard" / "sessions"
+_DEFAULT_SESSION_DIR = Path.home() / ".piiwall" / "sessions"
 
 
 class Session:
@@ -107,7 +107,7 @@ class Session:
         directory = directory or _DEFAULT_SESSION_DIR
         directory.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        path = directory / f"pii-guard-{ts}.json"
+        path = directory / f"piiwall-{ts}.json"
         return cls(path)
 
     @classmethod

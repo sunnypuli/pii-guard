@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "pii-guard contributors"}
+    {name = "piiwall contributors"}
 ]
 keywords = ["privacy", "pii", "ai", "claude", "codex", "dpdp", "gdpr", "hipaa", "tokenization"]
 classifiers = [
@@ -49,12 +49,12 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/sunnypuli/pii-guard"
-Repository = "https://github.com/sunnypuli/pii-guard"
-Issues = "https://github.com/sunnypuli/pii-guard/issues"
+Homepage = "https://github.com/sunnypuli/piiwall"
+Repository = "https://github.com/sunnypuli/piiwall"
+Issues = "https://github.com/sunnypuli/piiwall/issues"
 
 [project.scripts]
-pii-guard = "pii_guard.cli:cli"
+piiwall = "pii_guard.cli:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pii_guard"]

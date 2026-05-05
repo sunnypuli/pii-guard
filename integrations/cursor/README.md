@@ -1,13 +1,13 @@
-# pii-guard × Cursor
+# piiwall × Cursor
 
-Cursor uses the OpenAI API under the hood. Point it at the pii-guard proxy and every prompt is sanitized before it leaves your machine.
+Cursor uses the OpenAI API under the hood. Point it at the piiwall proxy and every prompt is sanitized before it leaves your machine.
 
 ## Setup
 
 **1. Start the proxy**
 
 ```bash
-pii-guard proxy --port 8111 --preset dpdp
+piiwall proxy --port 8111 --preset dpdp
 ```
 
 **2. Set the base URL in Cursor**
@@ -25,18 +25,18 @@ export OPENAI_BASE_URL=http://localhost:8111/openai/v1
 cursor .
 ```
 
-That's it. Every prompt Cursor sends — inline edits, chat, Cmd+K — passes through pii-guard.
+That's it. Every prompt Cursor sends — inline edits, chat, Cmd+K — passes through piiwall.
 
 ## Restore real values
 
 ```bash
-pii-guard detokenize output.txt --session ~/.pii-guard/sessions/<session-id>.json
+piiwall detokenize output.txt --session ~/.piiwall/sessions/<session-id>.json
 # or export as CSV
-pii-guard export-session ~/.pii-guard/sessions/<session-id>.json
+piiwall export-session ~/.piiwall/sessions/<session-id>.json
 ```
 
 ## Notes
 
 - The proxy must be running before you open Cursor.
-- Use `PII_GUARD_PRESETS=dpdp,pci` to activate multiple presets.
+- Use `PIIWALL_PRESETS=dpdp,pci` to activate multiple presets.
 - Restart the proxy to start a new session key.

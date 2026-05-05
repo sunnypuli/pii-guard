@@ -1,13 +1,13 @@
-# pii-guard × Continue.dev
+# piiwall × Continue.dev
 
-Continue.dev is an open-source AI coding assistant for VS Code and JetBrains. Set a custom `apiBase` in its config to route through pii-guard.
+Continue.dev is an open-source AI coding assistant for VS Code and JetBrains. Set a custom `apiBase` in its config to route through piiwall.
 
 ## Setup
 
 **1. Start the proxy**
 
 ```bash
-pii-guard proxy --port 8111 --preset dpdp
+piiwall proxy --port 8111 --preset dpdp
 ```
 
 **2. Edit `~/.continue/config.json`**
@@ -18,7 +18,7 @@ For Anthropic models:
 {
   "models": [
     {
-      "title": "Claude (via pii-guard)",
+      "title": "Claude (via piiwall)",
       "provider": "anthropic",
       "model": "claude-sonnet-4-6",
       "apiBase": "http://localhost:8111",
@@ -34,7 +34,7 @@ For OpenAI models:
 {
   "models": [
     {
-      "title": "GPT-4o (via pii-guard)",
+      "title": "GPT-4o (via piiwall)",
       "provider": "openai",
       "model": "gpt-4o",
       "apiBase": "http://localhost:8111/openai/v1",
@@ -49,5 +49,5 @@ Reload Continue (Cmd+Shift+P → `Continue: Reload`). All prompts — inline edi
 ## Restore real values
 
 ```bash
-pii-guard detokenize output.txt --session ~/.pii-guard/sessions/<session-id>.json
+piiwall detokenize output.txt --session ~/.piiwall/sessions/<session-id>.json
 ```

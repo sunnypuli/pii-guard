@@ -1,13 +1,13 @@
-# pii-guard × OpenAI Codex CLI
+# piiwall × OpenAI Codex CLI
 
-The OpenAI Codex CLI respects `OPENAI_BASE_URL`. Route it through pii-guard in one line.
+The OpenAI Codex CLI respects `OPENAI_BASE_URL`. Route it through piiwall in one line.
 
 ## Setup
 
 **1. Start the proxy**
 
 ```bash
-pii-guard proxy --port 8111 --preset dpdp
+piiwall proxy --port 8111 --preset dpdp
 ```
 
 **2. Run Codex with the proxy**
@@ -26,7 +26,7 @@ codex "analyse customers.csv"
 ## Restore real values
 
 ```bash
-pii-guard detokenize output.txt --session ~/.pii-guard/sessions/<session-id>.json
+piiwall detokenize output.txt --session ~/.piiwall/sessions/<session-id>.json
 ```
 
 ## Notes

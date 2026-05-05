@@ -1,5 +1,5 @@
 """
-pii-guard CLI
+piiwall CLI
 
 Commands:
   scan            Detect PII and report what was found (read-only)
@@ -31,8 +31,8 @@ from pii_guard.tokenizer.engine import detokenize as _detokenize
 from pii_guard.tokenizer.engine import tokenize as _tokenize
 from pii_guard.tokenizer.session import Session
 
-_CONFIG_PATH   = Path.home() / ".pii-guard" / "config.yaml"
-_AUDIT_LOG     = Path.home() / ".pii-guard" / "audit.log"
+_CONFIG_PATH   = Path.home() / ".piiwall" / "config.yaml"
+_AUDIT_LOG     = Path.home() / ".piiwall" / "audit.log"
 
 
 # ── Config loading ────────────────────────────────────────────────────────────
@@ -145,9 +145,9 @@ def _append_audit(action: str, file: str, count: int, by_type: dict[str, int]) -
 # ── CLI group ─────────────────────────────────────────────────────────────────
 
 @click.group()
-@click.version_option(package_name="pii-guard")
+@click.version_option(package_name="piiwall")
 def cli():
-    """pii-guard: local PII firewall for AI CLI tools.
+    """piiwall: local PII firewall for AI CLI tools.
 
     Tokenize before it leaves your machine.
     """
@@ -203,7 +203,7 @@ def scan(file: str, preset: tuple, no_base: bool, show_values: bool, pattern: tu
                 click.echo(f"    … and {count - 5} more")
 
     click.echo()
-    click.echo("Run `pii-guard tokenize` to replace with tokens before analysis.")
+    click.echo("Run `piiwall tokenize` to replace with tokens before analysis.")
     _append_audit("scan", file, len(matches), {t: len(ms) for t, ms in by_type.items()})
     sys.exit(1)
 
@@ -228,7 +228,7 @@ def scan(file: str, preset: tuple, no_base: bool, show_values: bool, pattern: tu
 @click.option(
     "--session", "-s",
     default=None,
-    help="Session key file. Default: ~/.pii-guard/sessions/pii-guard-<timestamp>.json",
+    help="Session key file. Default: ~/.piiwall/sessions/pii-guard-<timestamp>.json",
 )
 @click.option("--quiet", "-q", is_flag=True, help="Suppress summary output")
 @click.option(
@@ -291,13 +291,13 @@ def tokenize(
             click.echo()
             click.echo("To detokenize AI results:")
             click.secho(
-                f"  pii-guard detokenize result.txt --session {sess.path}",
+                f"  piiwall detokenize result.txt --session {sess.path}",
                 fg="bright_white",
             )
             click.echo()
             click.echo("To export a mapping CSV for Excel VLOOKUP:")
             click.secho(
-                f"  pii-guard export-session {sess.path}",
+                f"  piiwall export-session {sess.path}",
                 fg="bright_white",
             )
 
@@ -311,7 +311,7 @@ def tokenize(
 @click.option(
     "--session", "-s",
     required=True,
-    help="Session key file (written by pii-guard tokenize).",
+    help="Session key file (written by piiwall tokenize).",
 )
 @click.option("--output", "-o", default=None, help="Output file. Default: <file>.detokenized.<ext>")
 @click.option("--quiet", "-q", is_flag=True)
@@ -343,7 +343,7 @@ def stats(session: str):
 
     \b
     Example:
-      pii-guard stats ~/.pii-guard/sessions/pii-guard-20240115-103000.json
+      piiwall stats ~/.piiwall/sessions/pii-guard-20240115-103000.json
     """
     sess = Session.load(session)
     tokens = sess.tokens
@@ -423,7 +423,7 @@ def export_session(session: str, output: str | None, filter_type: str | None):
 
 @cli.group()
 def config():
-    """Manage pii-guard configuration."""
+    """Manage piiwall configuration."""
 
 
 @config.command("list-presets")
@@ -483,7 +483,7 @@ def proxy(port: int, preset: tuple, pattern: tuple, session: str | None, no_base
 
     \b
     Quickstart:
-      pii-guard proxy --port 8111 --preset dpdp
+      piiwall proxy --port 8111 --preset dpdp
 
     \b
     Configure your SDK:
@@ -492,11 +492,11 @@ def proxy(port: int, preset: tuple, pattern: tuple, session: str | None, no_base
 
     \b
     Docker:
-      docker run -p 8111:8111 pii-guard proxy --preset dpdp
+      docker run -p 8111:8111 piiwall proxy --preset dpdp
 
     \b
     Restore real values:
-      pii-guard export-session ~/.pii-guard/sessions/<id>.json
+      piiwall export-session ~/.piiwall/sessions/<id>.json
     """
     try:
         import httpx  # noqa: F401
@@ -531,13 +531,13 @@ def install_hooks(project: str, global_only: bool):
 
     \b
     Installs:
-      ~/.pii-guard/hooks/post_read.py    — intercepts Read tool output
-      ~/.pii-guard/hooks/post_bash.py    — intercepts Bash tool output
+      ~/.piiwall/hooks/post_read.py    — intercepts Read tool output
+      ~/.piiwall/hooks/post_bash.py    — intercepts Bash tool output
       <project>/.claude/settings.json   — wires hooks into Claude Code
 
     \b
     For Cursor, Aider, and other tools use the proxy instead:
-      pii-guard proxy --port 8111 --preset dpdp
+      piiwall proxy --port 8111 --preset dpdp
     """
     try:
         pkg_root = Path(__file__).parent.parent
@@ -549,10 +549,10 @@ def install_hooks(project: str, global_only: bool):
         raise click.ClickException(
             "Could not find bundled hook files. "
             "Clone the repo and run from there: "
-            "https://github.com/sunnypuli/pii-guard"
+            "https://github.com/sunnypuli/piiwall"
         )
 
-    hook_dest = Path.home() / ".pii-guard" / "hooks"
+    hook_dest = Path.home() / ".piiwall" / "hooks"
     hook_dest.mkdir(parents=True, exist_ok=True)
 
     for hook_file in ["post_read.py", "post_bash.py"]:
@@ -593,7 +593,7 @@ def install_hooks(project: str, global_only: bool):
         click.secho(f"  ✓ {settings_dst}", fg="green")
 
     click.echo()
-    click.secho("pii-guard hooks installed.", fg="cyan", bold=True)
+    click.secho("piiwall hooks installed.", fg="cyan", bold=True)
     _print_next_steps()
 
 
@@ -607,7 +607,7 @@ def _print_next_steps():
     click.echo()
     click.echo("Set presets via env (default: dpdp):")
     click.secho(
-        "  export PII_GUARD_PRESETS=dpdp,pci",
+        "  export PIIWALL_PRESETS=dpdp,pci",
         fg="bright_white",
     )
 

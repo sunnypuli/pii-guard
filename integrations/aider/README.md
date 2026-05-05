@@ -1,6 +1,6 @@
-# pii-guard × Aider
+# piiwall × Aider
 
-Aider is a terminal-based AI coding assistant. Route it through the pii-guard proxy so PII in your files never reaches OpenAI or Anthropic servers.
+Aider is a terminal-based AI coding assistant. Route it through the piiwall proxy so PII in your files never reaches OpenAI or Anthropic servers.
 
 ## Setup
 
@@ -8,10 +8,10 @@ Aider is a terminal-based AI coding assistant. Route it through the pii-guard pr
 
 ```bash
 # For OpenAI / GPT models
-pii-guard proxy --port 8111 --preset dpdp
+piiwall proxy --port 8111 --preset dpdp
 
 # For Anthropic / Claude models
-pii-guard proxy --port 8112 --preset dpdp
+piiwall proxy --port 8112 --preset dpdp
 ```
 
 **2. Run aider with the proxy base URL**
@@ -34,7 +34,7 @@ aider
 ## Restore real values
 
 ```bash
-pii-guard detokenize .aider.chat.history.md --session ~/.pii-guard/sessions/<session-id>.json
+piiwall detokenize .aider.chat.history.md --session ~/.piiwall/sessions/<session-id>.json
 ```
 
 ## Notes

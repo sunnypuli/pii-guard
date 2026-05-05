@@ -180,9 +180,9 @@ piiwall export-session ~/.piiwall/sessions/claude-<session-id>.json
 ### Control via environment variables
 
 ```bash
-export PII_GUARD_PRESETS=dpdp,pci   # comma-separated presets (default: dpdp)
-export PII_GUARD_ENABLED=0          # disable hooks without removing them
-export PII_GUARD_MAX_CHARS=200000   # cap bash output scan size (default: 200000)
+export PIIWALL_PRESETS=dpdp,pci   # comma-separated presets (default: dpdp)
+export PIIWALL_ENABLED=0          # disable hooks without removing them
+export PIIWALL_MAX_CHARS=200000   # cap bash output scan size (default: 200000)
 ```
 
 ---

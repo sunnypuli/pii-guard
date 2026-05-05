@@ -16,9 +16,9 @@ import os
 import sys
 from pathlib import Path
 
-_PRESETS = os.environ.get("PII_GUARD_PRESETS", "dpdp").split(",")
-_ENABLED = os.environ.get("PII_GUARD_ENABLED", "1") not in ("0", "false", "no")
-_MAX_SCAN_CHARS = int(os.environ.get("PII_GUARD_MAX_CHARS", 200_000))
+_PRESETS = os.environ.get("PIIWALL_PRESETS", "dpdp").split(",")
+_ENABLED = os.environ.get("PIIWALL_ENABLED", "1") not in ("0", "false", "no")
+_MAX_SCAN_CHARS = int(os.environ.get("PIIWALL_MAX_CHARS", 200_000))
 
 
 def _extract_content(tool_result) -> str | None:
@@ -76,7 +76,7 @@ def main():
         patterns = {**BASE_PATTERNS, **load_presets(_PRESETS)}
         try:
             import yaml
-            cfg_path = Path.home() / ".pii-guard" / "config.yaml"
+            cfg_path = Path.home() / ".piiwall" / "config.yaml"
             if cfg_path.exists():
                 cfg = yaml.safe_load(cfg_path.read_text()) or {}
                 patterns.update(cfg.get("custom_patterns") or {})
@@ -89,7 +89,7 @@ def main():
             return
 
         session_id = data.get("session_id", "")
-        session_dir = Path.home() / ".pii-guard" / "sessions"
+        session_dir = Path.home() / ".piiwall" / "sessions"
         if session_id:
             session_path = session_dir / f"claude-{session_id}.json"
             session = Session.load(session_path)
@@ -100,7 +100,7 @@ def main():
         session.save()
 
         notice = (
-            f"[pii-guard] {len(matches)} PII instance(s) tokenised in bash output "
+            f"[piiwall] {len(matches)} PII instance(s) tokenised in bash output "
             f"(session: {session.path}).\n\n"
         )
         remainder = tool_output[_MAX_SCAN_CHARS:]
@@ -108,12 +108,12 @@ def main():
         sys.stdout.write(json.dumps(data))
 
     except ImportError:
-        warning = "[pii-guard] WARNING: package not installed — PII passed through unfiltered.\n\n"
+        warning = "[piiwall] WARNING: package not installed — PII passed through unfiltered.\n\n"
         _set_content(data, warning + tool_output)
         sys.stdout.write(json.dumps(data))
     except Exception as e:
         sys.stdout.write(json.dumps(data))
-        print(f"[pii-guard] hook error: {e}", file=sys.stderr)
+        print(f"[piiwall] hook error: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
-- id: pii-guard-scan
-  name: pii-guard PII scan
+- id: piiwall-scan
+  name: piiwall PII scan
   description: >
     Scan staged files for PII before committing.
-    Fails if any PII is detected. Use pii-guard tokenize to sanitize first.
+    Fails if any PII is detected. Use piiwall tokenize to sanitize first.
   language: python
-  entry: pii-guard scan
+  entry: piiwall scan
   args: [--preset, dpdp]
   types: [text]
   pass_filenames: true

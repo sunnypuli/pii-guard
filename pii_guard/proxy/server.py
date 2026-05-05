@@ -1,12 +1,12 @@
 """
-pii-guard proxy server.
+piiwall proxy server.
 
 Sits between your application and the LLM API. Tokenizes PII in prompts
 before they leave your machine, detokenizes responses before they reach
 your app. Drop-in: just change the base URL.
 
 Usage:
-    pii-guard proxy --port 8111 --preset dpdp
+    piiwall proxy --port 8111 --preset dpdp
 
 Then in your app:
     ANTHROPIC_BASE_URL=http://localhost:8111          # Anthropic SDK
@@ -117,7 +117,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         if self.server.verbose:
-            print(f"[pii-guard proxy] {fmt % args}", flush=True)
+            print(f"[piiwall proxy] {fmt % args}", flush=True)
 
     def _target_url(self) -> str:
         path = self.path
@@ -155,7 +155,7 @@ class _Handler(BaseHTTPRequestHandler):
                 body = json.dumps(data).encode()
                 headers["Content-Length"] = str(len(body))
                 if match_count and self.server.verbose:
-                    print(f"[pii-guard proxy] tokenised {match_count} PII instance(s) in request", flush=True)
+                    print(f"[piiwall proxy] tokenised {match_count} PII instance(s) in request", flush=True)
             except Exception:
                 pass
 
@@ -234,7 +234,7 @@ class ProxyServer:
         # Load custom patterns from config file
         try:
             import yaml
-            cfg = Path.home() / ".pii-guard" / "config.yaml"
+            cfg = Path.home() / ".piiwall" / "config.yaml"
             if cfg.exists():
                 patterns.update((yaml.safe_load(cfg.read_text()) or {}).get("custom_patterns") or {})
         except Exception:
@@ -253,13 +253,13 @@ class ProxyServer:
 
     def start(self):
         if self.verbose:
-            print(f"[pii-guard proxy] Listening on http://localhost:{self.port}", flush=True)
-            print(f"[pii-guard proxy] Session key: {self.session.path}", flush=True)
-            print(f"[pii-guard proxy] Active patterns: {len(self._server.scanner.active_types)}", flush=True)
-            print(f"[pii-guard proxy] Set ANTHROPIC_BASE_URL=http://localhost:{self.port}", flush=True)
-            print(f"[pii-guard proxy] Ctrl+C to stop\n", flush=True)
+            print(f"[piiwall proxy] Listening on http://localhost:{self.port}", flush=True)
+            print(f"[piiwall proxy] Session key: {self.session.path}", flush=True)
+            print(f"[piiwall proxy] Active patterns: {len(self._server.scanner.active_types)}", flush=True)
+            print(f"[piiwall proxy] Set ANTHROPIC_BASE_URL=http://localhost:{self.port}", flush=True)
+            print(f"[piiwall proxy] Ctrl+C to stop\n", flush=True)
         try:
             self._server.serve_forever()
         except KeyboardInterrupt:
             self._server.session.save()
-            print(f"\n[pii-guard proxy] Stopped. Session saved to {self.session.path}", flush=True)
+            print(f"\n[piiwall proxy] Stopped. Session saved to {self.session.path}", flush=True)

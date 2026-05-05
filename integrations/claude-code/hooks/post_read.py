@@ -3,13 +3,13 @@
 Claude Code PostToolUse hook — fires after the Read tool.
 
 Receives tool result JSON on stdin, tokenizes any PII in the file content,
-writes the token→value session key to ~/.pii-guard/sessions/, then outputs
+writes the token→value session key to ~/.piiwall/sessions/, then outputs
 the modified tool result JSON so Claude only ever sees tokenized content.
 
 All tool calls within the same Claude Code session share one session file
 (keyed on session_id), so a single detokenize pass restores everything.
 
-Install: pii-guard install-hooks
+Install: piiwall install-hooks
 """
 
 from __future__ import annotations
@@ -19,12 +19,12 @@ import os
 import sys
 from pathlib import Path
 
-_PRESETS = os.environ.get("PII_GUARD_PRESETS", "dpdp").split(",")
-_ENABLED = os.environ.get("PII_GUARD_ENABLED", "1") not in ("0", "false", "no")
+_PRESETS = os.environ.get("PIIWALL_PRESETS", "dpdp").split(",")
+_ENABLED = os.environ.get("PIIWALL_ENABLED", "1") not in ("0", "false", "no")
 
 
 def _debug(msg: str) -> None:
-    with open("/tmp/pii_guard_debug.log", "a") as f:
+    with open("/tmp/piiwall_debug.log", "a") as f:
         f.write(msg + "\n")
 
 
@@ -66,7 +66,7 @@ def _set_content(data: dict, new_content: str) -> None:
 
 def main():
     raw = sys.stdin.read()
-    _debug(f"[pii-guard hook fired] len={len(raw)} enabled={_ENABLED}")
+    _debug(f"[piiwall hook fired] len={len(raw)} enabled={_ENABLED}")
 
     if not _ENABLED:
         sys.stdout.write(raw)
@@ -74,16 +74,16 @@ def main():
 
     try:
         data = json.loads(raw)
-        _debug(f"[pii-guard] keys={list(data.keys())} tool_result_type={type(data.get('tool_result')).__name__}")
+        _debug(f"[piiwall] keys={list(data.keys())} tool_result_type={type(data.get('tool_result')).__name__}")
     except json.JSONDecodeError as e:
-        _debug(f"[pii-guard] JSON decode error: {e} raw[:200]={raw[:200]}")
+        _debug(f"[piiwall] JSON decode error: {e} raw[:200]={raw[:200]}")
         sys.stdout.write(raw)
         return
 
     tr = data.get("tool_response")
-    _debug(f"[pii-guard] tool_response={json.dumps(tr)[:500] if tr is not None else 'MISSING'}")
+    _debug(f"[piiwall] tool_response={json.dumps(tr)[:500] if tr is not None else 'MISSING'}")
     tool_output = _extract_content(tr)
-    _debug(f"[pii-guard] extracted content len={len(tool_output) if tool_output else None}")
+    _debug(f"[piiwall] extracted content len={len(tool_output) if tool_output else None}")
     if not tool_output:
         sys.stdout.write(json.dumps(data))
         return
@@ -96,10 +96,10 @@ def main():
         from pii_guard.tokenizer.session import Session
 
         patterns = {**BASE_PATTERNS, **load_presets(_PRESETS)}
-        # Load custom patterns from ~/.pii-guard/config.yaml if present
+        # Load custom patterns from ~/.piiwall/config.yaml if present
         try:
             import yaml
-            cfg_path = Path.home() / ".pii-guard" / "config.yaml"
+            cfg_path = Path.home() / ".piiwall" / "config.yaml"
             if cfg_path.exists():
                 cfg = yaml.safe_load(cfg_path.read_text()) or {}
                 patterns.update(cfg.get("custom_patterns") or {})
@@ -108,13 +108,13 @@ def main():
         scanner = Scanner(patterns)
 
         if not scanner.has_pii(tool_output):
-            _debug(f"[pii-guard] no PII found, passing through")
+            _debug(f"[piiwall] no PII found, passing through")
             sys.stdout.write(json.dumps(data))
             return
 
         # Use a per-Claude-session file so all reads share one key
         session_id = data.get("session_id", "")
-        session_dir = Path.home() / ".pii-guard" / "sessions"
+        session_dir = Path.home() / ".piiwall" / "sessions"
         if session_id:
             session_path = session_dir / f"claude-{session_id}.json"
             session = Session.load(session_path)
@@ -123,10 +123,10 @@ def main():
 
         tokenized, matches = tokenize(tool_output, scanner, session)
         session.save()
-        _debug(f"[pii-guard] TOKENIZED {len(matches)} matches: {[m.pii_type for m in matches[:5]]}")
+        _debug(f"[piiwall] TOKENIZED {len(matches)} matches: {[m.pii_type for m in matches[:5]]}")
 
         notice = (
-            f"[pii-guard] {len(matches)} PII instance(s) tokenised "
+            f"[piiwall] {len(matches)} PII instance(s) tokenised "
             f"(session: {session.path}). "
             "Tokens like [EMAIL_1] represent real values stored locally.\n\n"
         )
@@ -134,12 +134,12 @@ def main():
         sys.stdout.write(json.dumps(data))
 
     except ImportError:
-        warning = "[pii-guard] WARNING: package not installed — PII passed through unfiltered.\n\n"
+        warning = "[piiwall] WARNING: package not installed — PII passed through unfiltered.\n\n"
         _set_content(data, warning + tool_output)
         sys.stdout.write(json.dumps(data))
     except Exception as e:
         sys.stdout.write(json.dumps(data))
-        print(f"[pii-guard] hook error: {e}", file=sys.stderr)
+        print(f"[piiwall] hook error: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":

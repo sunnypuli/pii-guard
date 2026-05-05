@@ -2,7 +2,7 @@
 Multi-format file reader and in-place tokenizer.
 Supports plain text, CSV, PDF, DOCX, XLSX/XLS.
 
-Optional deps (pip install 'pii-guard[rich]'):
+Optional deps (pip install 'piiwall[rich]'):
   pypdf       — PDF extraction
   python-docx — Word document read/write
   openpyxl    — Excel read/write
@@ -62,7 +62,7 @@ def _read_pdf(path: Path) -> str:
     except ImportError:
         raise ImportError(
             "pypdf is required for PDF support.\n"
-            "Install it: pip install 'pii-guard[rich]'"
+            "Install it: pip install 'piiwall[rich]'"
         )
     reader = pypdf.PdfReader(str(path))
     pages: list[str] = []
@@ -81,7 +81,7 @@ def _read_docx(path: Path) -> str:
     except ImportError:
         raise ImportError(
             "python-docx is required for Word document support.\n"
-            "Install it: pip install 'pii-guard[rich]'"
+            "Install it: pip install 'piiwall[rich]'"
         )
     doc = docx.Document(str(path))
     parts: list[str] = []
@@ -106,7 +106,7 @@ def _tokenize_docx(
     except ImportError:
         raise ImportError(
             "python-docx is required for Word document support.\n"
-            "Install it: pip install 'pii-guard[rich]'"
+            "Install it: pip install 'piiwall[rich]'"
         )
     doc = docx.Document(str(input_path))
 
@@ -147,7 +147,7 @@ def _read_xlsx(path: Path) -> str:
     except ImportError:
         raise ImportError(
             "openpyxl is required for Excel support.\n"
-            "Install it: pip install 'pii-guard[rich]'"
+            "Install it: pip install 'piiwall[rich]'"
         )
     wb = openpyxl.load_workbook(str(path), data_only=True)
     parts: list[str] = []
@@ -169,7 +169,7 @@ def _tokenize_xlsx(
     except ImportError:
         raise ImportError(
             "openpyxl is required for Excel support.\n"
-            "Install it: pip install 'pii-guard[rich]'"
+            "Install it: pip install 'piiwall[rich]'"
         )
     wb = openpyxl.load_workbook(str(input_path))
     for ws in wb.worksheets:

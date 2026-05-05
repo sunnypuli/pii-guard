@@ -1,4 +1,4 @@
-# pii-guard — Behavioral Layer
+# piiwall — Behavioral Layer
 
 This file activates the behavioral PII guardrail for Claude Code.
 Drop it into any project alongside the technical hooks.
@@ -10,7 +10,7 @@ Drop it into any project alongside the technical hooks.
 Before processing **any** data file or user-provided content, check it for PII.
 
 PII includes — but is not limited to — anything matched by the active preset
-(see `pii-guard config list-presets`), plus:
+(see `piiwall config list-presets`), plus:
 
 - Full names and initials
 - Physical addresses, PIN codes, GPS coordinates
@@ -29,19 +29,19 @@ PII includes — but is not limited to — anything matched by the active preset
    > throughout the file."
 
 3. **Offer to tokenize:**
-   > "I can run `pii-guard tokenize` on this file so the analysis uses
+   > "I can run `piiwall tokenize` on this file so the analysis uses
    > `[AADHAAR_1]`-style tokens. The mapping stays on your machine.
    > Want me to do that?"
 
 4. **If they agree**, run:
    ```
-   pii-guard tokenize <file> -p dpdp
+   piiwall tokenize <file> -p dpdp
    ```
    Then re-run the analysis on the `.safe` output.
 
 5. **Offer to detokenize results** when the analysis is done:
    ```
-   pii-guard detokenize result.txt --session ~/.pii-guard/sessions/<timestamp>.json
+   piiwall detokenize result.txt --session ~/.piiwall/sessions/<timestamp>.json
    ```
 
 ---
